@@ -85,6 +85,19 @@ Each phase spawns a single-shot `claude -p` instance with:
 - Budget caps (`--max-budget-usd`)
 - Focused prompt from `.ralph/prompts/`
 
+### Context Loss Between Phases
+Every phase runs in its own `claude -p` process. When a phase ends, its entire context window is lost — the next phase starts from zero with no memory of what the previous worker did or discovered. This means **every phase must externalize its valuable output as durable artifacts before it exits.** If a worker learns something, decides something, or builds something but doesn't persist it outside its context window, that work is gone.
+
+Each phase should leave artifacts appropriate to its role:
+- **Research** — GitHub issues capturing findings, with enough detail that a future planner can act on them without re-researching
+- **Plan** — GitHub issues with clear titles, acceptance criteria, and labels; updated `.ralph/backlog.json` with priority rankings
+- **Orchestrate** — Updated `.ralph/status.json` and `.ralph/backlog.json` reflecting the selected issue and reasoning
+- **Work** — Committed and pushed code on a feature branch; a pull request with a descriptive body explaining what was done and why
+- **Review** — PR comments explaining review decisions; merged PRs or change-request comments with specific actionable feedback
+- **Monitor** — GitHub issues for any failures found; updated `.ralph/status.json` if a halt is needed
+
+The rule is simple: **if it's not in a GitHub issue, PR, commit, or status file, it doesn't exist for the next worker.**
+
 ### Running
 ```bash
 python3 ralph.py                    # Unlimited loop

@@ -41,6 +41,9 @@ Check the health of the main branch and project state.
 }
 ```
 
+## Context Loss
+Your context window is destroyed when this phase ends. The next worker (researcher, in the next loop) starts from zero. Your durable artifacts are the JSON output and any updates to `.ralph/status.json` (e.g., setting `halted: true` if main is broken). If you find critical failures, your JSON warnings are the only way the next research phase will know about them. Be specific — include error messages, failing test names, and affected files.
+
 ## Constraints
 - Do NOT modify code files
 - Do NOT create issues or PRs (save findings for research phase)

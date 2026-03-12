@@ -40,6 +40,9 @@ Groom the backlog and select the next issue to work on.
 }
 ```
 
+## Context Loss
+Your context window is destroyed when this phase ends. The next worker (implementation) starts from zero. Your durable artifacts are the updated `.ralph/backlog.json` and `.ralph/status.json`. The implementation worker will read these to know what to build and why it was selected. Make your `reason` field detailed enough that the worker understands the priority rationale without re-analyzing the backlog.
+
 ## Constraints
 - Do NOT modify code files
 - Do NOT create branches or PRs
