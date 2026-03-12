@@ -164,6 +164,23 @@ pub enum StrumDirection {
     Ghost,
 }
 
+/// Which chord voices a strum hit targets.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VoiceTarget {
+    /// All chord tones.
+    #[default]
+    All,
+    /// Lowest chord tone only (bass note).
+    Bass,
+    /// Middle chord tones.
+    Mid,
+    /// Upper chord tones (top half).
+    High,
+    /// All except root.
+    Upper,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StrumHit {
     /// Position within pattern in ticks.
@@ -173,6 +190,9 @@ pub struct StrumHit {
     pub velocity_factor: f32,
     /// Chord spread time in ms (0 = simultaneous).
     pub stagger_ms: f32,
+    /// Which chord voices this hit targets.
+    #[serde(default)]
+    pub voice_target: VoiceTarget,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -242,12 +262,12 @@ impl StrumPattern {
         Self {
             name: "Folk Strum".to_string(),
             hits: vec![
-                StrumHit { tick_offset: 0, direction: StrumDirection::Down, velocity_factor: 1.0, stagger_ms: 12.0 },
-                StrumHit { tick_offset: 480, direction: StrumDirection::Down, velocity_factor: 0.8, stagger_ms: 10.0 },
-                StrumHit { tick_offset: 720, direction: StrumDirection::Up, velocity_factor: 0.6, stagger_ms: 6.0 },
-                StrumHit { tick_offset: 1200, direction: StrumDirection::Up, velocity_factor: 0.6, stagger_ms: 6.0 },
-                StrumHit { tick_offset: 1440, direction: StrumDirection::Down, velocity_factor: 0.85, stagger_ms: 10.0 },
-                StrumHit { tick_offset: 1680, direction: StrumDirection::Up, velocity_factor: 0.6, stagger_ms: 6.0 },
+                StrumHit { tick_offset: 0, direction: StrumDirection::Down, velocity_factor: 1.0, stagger_ms: 12.0, voice_target: VoiceTarget::All },
+                StrumHit { tick_offset: 480, direction: StrumDirection::Down, velocity_factor: 0.8, stagger_ms: 10.0, voice_target: VoiceTarget::All },
+                StrumHit { tick_offset: 720, direction: StrumDirection::Up, velocity_factor: 0.6, stagger_ms: 6.0, voice_target: VoiceTarget::All },
+                StrumHit { tick_offset: 1200, direction: StrumDirection::Up, velocity_factor: 0.6, stagger_ms: 6.0, voice_target: VoiceTarget::All },
+                StrumHit { tick_offset: 1440, direction: StrumDirection::Down, velocity_factor: 0.85, stagger_ms: 10.0, voice_target: VoiceTarget::All },
+                StrumHit { tick_offset: 1680, direction: StrumDirection::Up, velocity_factor: 0.6, stagger_ms: 6.0, voice_target: VoiceTarget::All },
             ],
             beats: 4,
         }
