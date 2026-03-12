@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::engine::song::{InstrumentType, SongPart, StrumPattern};
+use crate::engine::song::{InstrumentType, Pattern, SongPart, StrumPattern};
 use crate::engine::theory::ScaleType;
 use crate::state::AppState;
 
@@ -72,6 +72,48 @@ pub fn execute(command: &Commands, args: &Cli) -> Result<()> {
             let seed = args.seed.unwrap_or(42);
             let state = AppState::new(seed);
             serde_json::json!({"ok": true, "data": state.song})
+        }
+        Commands::GetTrack { index } => {
+            let seed = args.seed.unwrap_or(42);
+            let state = AppState::new(seed);
+            if *index >= state.song.tracks.len() {
+                serde_json::json!({"ok": false, "error": format!("Track index {} out of range (0-{})", index, state.song.tracks.len() - 1)})
+            } else {
+                serde_json::json!({"ok": true, "data": state.song.tracks[*index]})
+            }
+        }
+        Commands::GetPattern { track, part } => {
+            let seed = args.seed.unwrap_or(42);
+            let state = AppState::new(seed);
+            match part.parse::<SongPart>() {
+                Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
+                Ok(song_part) => {
+                    if *track >= state.song.tracks.len() {
+                        serde_json::json!({"ok": false, "error": format!("Track index {} out of range (0-{})", track, state.song.tracks.len() - 1)})
+                    } else {
+                        match state.song.tracks[*track].patterns.get(&song_part) {
+                            Some(pattern) => serde_json::json!({"ok": true, "data": pattern}),
+                            None => {
+                                let empty = Pattern::empty(song_part.typical_bars());
+                                serde_json::json!({"ok": true, "data": empty})
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Commands::ListProgressions { part } => {
+            let seed = args.seed.unwrap_or(42);
+            let state = AppState::new(seed);
+            match part.parse::<SongPart>() {
+                Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
+                Ok(song_part) => {
+                    match state.song.progressions.get(&song_part) {
+                        Some(prog) => serde_json::json!({"ok": true, "data": prog}),
+                        None => serde_json::json!({"ok": true, "data": []}),
+                    }
+                }
+            }
         }
         _ => serde_json::json!({"ok": true, "data": "not yet implemented"}),
     };
@@ -155,6 +197,48 @@ mod tests {
                 let seed = args.seed.unwrap_or(42);
                 let state = AppState::new(seed);
                 serde_json::json!({"ok": true, "data": state.song})
+            }
+            Commands::GetTrack { index } => {
+                let seed = args.seed.unwrap_or(42);
+                let state = AppState::new(seed);
+                if *index >= state.song.tracks.len() {
+                    serde_json::json!({"ok": false, "error": format!("Track index {} out of range (0-{})", index, state.song.tracks.len() - 1)})
+                } else {
+                    serde_json::json!({"ok": true, "data": state.song.tracks[*index]})
+                }
+            }
+            Commands::GetPattern { track, part } => {
+                let seed = args.seed.unwrap_or(42);
+                let state = AppState::new(seed);
+                match part.parse::<SongPart>() {
+                    Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
+                    Ok(song_part) => {
+                        if *track >= state.song.tracks.len() {
+                            serde_json::json!({"ok": false, "error": format!("Track index {} out of range (0-{})", track, state.song.tracks.len() - 1)})
+                        } else {
+                            match state.song.tracks[*track].patterns.get(&song_part) {
+                                Some(pattern) => serde_json::json!({"ok": true, "data": pattern}),
+                                None => {
+                                    let empty = Pattern::empty(song_part.typical_bars());
+                                    serde_json::json!({"ok": true, "data": empty})
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Commands::ListProgressions { part } => {
+                let seed = args.seed.unwrap_or(42);
+                let state = AppState::new(seed);
+                match part.parse::<SongPart>() {
+                    Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
+                    Ok(song_part) => {
+                        match state.song.progressions.get(&song_part) {
+                            Some(prog) => serde_json::json!({"ok": true, "data": prog}),
+                            None => serde_json::json!({"ok": true, "data": []}),
+                        }
+                    }
+                }
             }
             _ => serde_json::json!({"ok": true, "data": "not yet implemented"}),
         };
@@ -285,6 +369,108 @@ mod tests {
                 serde_json::from_str(&json_str).expect("should parse back");
             assert_eq!(resp["ok"], true);
         }
+    }
+
+    #[test]
+    fn get_track_returns_track_data() {
+        let resp = exec_json(&Commands::GetTrack { index: 0 }, &default_args());
+        assert_eq!(resp["ok"], true);
+        let data = &resp["data"];
+        assert_eq!(data["id"], 0);
+        assert_eq!(data["name"], "Kick");
+        assert_eq!(data["role"], "drum");
+        assert_eq!(data["instrument"], "kick");
+    }
+
+    #[test]
+    fn get_track_returns_correct_index() {
+        let resp = exec_json(&Commands::GetTrack { index: 4 }, &default_args());
+        assert_eq!(resp["ok"], true);
+        assert_eq!(resp["data"]["id"], 4);
+        assert_eq!(resp["data"]["name"], "Acoustic Guitar");
+        assert_eq!(resp["data"]["role"], "rhythm");
+        assert_eq!(resp["data"]["instrument"], "acoustic_guitar");
+        assert_eq!(resp["data"]["voicing"], "poly");
+    }
+
+    #[test]
+    fn get_track_out_of_range_returns_error() {
+        let resp = exec_json(&Commands::GetTrack { index: 99 }, &default_args());
+        assert_eq!(resp["ok"], false);
+        let err = resp["error"].as_str().expect("error should be string");
+        assert!(err.contains("out of range"));
+    }
+
+    #[test]
+    fn get_pattern_returns_empty_pattern() {
+        // Default song has no composed patterns yet, so we get an empty pattern
+        let resp = exec_json(
+            &Commands::GetPattern { track: 0, part: "verse".to_string() },
+            &default_args(),
+        );
+        assert_eq!(resp["ok"], true);
+        let data = &resp["data"];
+        assert_eq!(data["bars"], 8); // verse = 8 bars
+        assert_eq!(data["events"].as_array().expect("events array").len(), 0);
+    }
+
+    #[test]
+    fn get_pattern_invalid_part_returns_error() {
+        let resp = exec_json(
+            &Commands::GetPattern { track: 0, part: "nonexistent".to_string() },
+            &default_args(),
+        );
+        assert_eq!(resp["ok"], false);
+        let err = resp["error"].as_str().expect("error should be string");
+        assert!(err.contains("unknown song part"));
+    }
+
+    #[test]
+    fn get_pattern_track_out_of_range_returns_error() {
+        let resp = exec_json(
+            &Commands::GetPattern { track: 99, part: "chorus".to_string() },
+            &default_args(),
+        );
+        assert_eq!(resp["ok"], false);
+        let err = resp["error"].as_str().expect("error should be string");
+        assert!(err.contains("out of range"));
+    }
+
+    #[test]
+    fn list_progressions_returns_verse_progression() {
+        let resp = exec_json(
+            &Commands::ListProgressions { part: "verse".to_string() },
+            &default_args(),
+        );
+        assert_eq!(resp["ok"], true);
+        let data = resp["data"].as_array().expect("data should be array");
+        assert_eq!(data.len(), 4);
+        assert_eq!(data[0], "I");
+        assert_eq!(data[1], "V");
+        assert_eq!(data[2], "VI");
+        assert_eq!(data[3], "IV");
+    }
+
+    #[test]
+    fn list_progressions_returns_bridge_progression() {
+        let resp = exec_json(
+            &Commands::ListProgressions { part: "bridge".to_string() },
+            &default_args(),
+        );
+        assert_eq!(resp["ok"], true);
+        let data = resp["data"].as_array().expect("data should be array");
+        assert_eq!(data.len(), 3);
+    }
+
+    #[test]
+    fn list_progressions_invalid_part_returns_error() {
+        let resp = exec_json(
+            &Commands::ListProgressions { part: "nonexistent".to_string() },
+            &default_args(),
+        );
+        assert_eq!(resp["ok"], false);
+        let err = resp["error"].as_str().expect("error should be string");
+        assert!(err.contains("unknown song part"));
     }
 
     #[test]
