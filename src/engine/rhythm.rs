@@ -934,11 +934,7 @@ mod tests {
         engine.humanize(&mut events, TrackRole::Rhythm, SongPart::Chorus);
 
         // Tick should remain close to the original (within timing_max_offset=15)
-        let diff = if events[0].tick > large_tick {
-            events[0].tick - large_tick
-        } else {
-            large_tick - events[0].tick
-        };
+        let diff = events[0].tick.abs_diff(large_tick);
         assert!(
             diff <= 15,
             "tick drifted {} from original, expected <= 15",
