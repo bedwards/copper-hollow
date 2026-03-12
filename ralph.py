@@ -55,45 +55,33 @@ REVIEW_POLL_INTERVAL = 30  # Poll every 30s after initial wait
 REVIEW_POLL_MAX_ATTEMPTS = 32  # Up to 16 more minutes of polling (18 min total max)
 GITHUB_REPO = "bedwards/copper-hollow"
 
-# Bot reviewer definitions
-# Each bot has: login, type ("review" posts gh reviews, "action" runs as GitHub Action),
-# and quota_phrases (strings that indicate quota exhaustion, counts as "done")
-BOT_REVIEWERS = [
-    {
-        "name": "Gemini Code Assist",
-        "login": "gemini-code-assist[bot]",
-        "type": "review",
-        "quota_phrases": [
-            "reached your daily quota limit",
-            "wait up to 24 hours",
-        ],
-    },
-    {
-        "name": "Claude",
-        "login": "github-actions[bot]",
-        "type": "action",
-        "check_name": "claude-review",
-        "workflow_name": "Claude Code Review",
-        "quota_phrases": [],
-    },
-    {
-        "name": "ChatGPT Codex",
-        "login": "chatgpt-codex-connector[bot]",
-        "type": "review",
-        "quota_phrases": [
-            "reached your Codex usage limits",
-            "usage dashboard",
-        ],
-    },
-    {
-        "name": "Gemini 3.1 Pro (custom)",
-        "login": "github-actions[bot]",
-        "type": "action",
-        "check_name": "gemini-review",
-        "workflow_name": "Gemini 3.1 Pro Review",
-        "quota_phrases": [],
-    },
-]
+# Bot reviewer config — loaded from .ralph/reviewers.json
+# Edit that file to enable/disable reviewers without touching code
+REVIEWERS_FILE = os.path.join(RALPH_DIR, "reviewers.json")
+
+
+def load_bot_reviewers():
+    """Load active bot reviewers from .ralph/reviewers.json."""
+    try:
+        data = read_json(REVIEWERS_FILE)
+        all_reviewers = data.get("reviewers", [])
+        active = [r for r in all_reviewers if r.get("active", True)]
+        inactive = [r["name"] for r in all_reviewers if not r.get("active", True)]
+        if inactive:
+            log(f"Inactive reviewers (skipped): {', '.join(inactive)}")
+        return active
+    except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
+        log(f"Warning: could not load {REVIEWERS_FILE}: {e}", "WARN")
+        return []
+
+
+def get_all_bot_logins():
+    """Get all bot logins (active and inactive) for filtering reviews."""
+    try:
+        data = read_json(REVIEWERS_FILE)
+        return [r["login"] for r in data.get("reviewers", [])]
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        return []
 
 # Tagging milestones (PR merge count -> tag)
 MILESTONE_TAGS = {
@@ -415,18 +403,19 @@ def check_bot_review_status(pr_number, bot):
 def wait_for_bot_reviews(pr_number):
     """Wait for all bot reviewers to post on a PR.
     Returns dict of {bot_name: status} where status is reviewed/quota_exhausted/timeout."""
-    bot_names = [b["name"] for b in BOT_REVIEWERS]
+    active_reviewers = load_bot_reviewers()
+    bot_names = [b["name"] for b in active_reviewers]
     log_phase("review", f"Waiting for bot reviews on PR #{pr_number}: {', '.join(bot_names)}")
     log_phase("review", f"Initial wait: {REVIEW_INITIAL_WAIT}s, then polling every {REVIEW_POLL_INTERVAL}s")
 
     time.sleep(REVIEW_INITIAL_WAIT)
 
-    results = {b["name"]: "pending" for b in BOT_REVIEWERS}
+    results = {b["name"]: "pending" for b in active_reviewers}
 
     for attempt in range(1, REVIEW_POLL_MAX_ATTEMPTS + 1):
         all_done = True
 
-        for bot in BOT_REVIEWERS:
+        for bot in active_reviewers:
             if results[bot["name"]] not in ("pending",):
                 continue  # Already resolved
 
@@ -457,7 +446,7 @@ def wait_for_bot_reviews(pr_number):
 def verify_review_posted(pr_number):
     """Verify that a non-bot review was actually posted on the PR.
     Returns True if a human/RALPH review exists, False otherwise."""
-    bot_logins = [b["login"] for b in BOT_REVIEWERS]
+    bot_logins = get_all_bot_logins()
     # Build jq filter to exclude all known bots
     jq_conditions = " and ".join(f'.user.login != "{login}"' for login in bot_logins)
     jq_filter = f'[.[] | select({jq_conditions})] | length'
@@ -770,7 +759,7 @@ def phase_review(dry_run=False):
     # Tell the reviewer what bot reviews are available
     status_lines = []
     claude_run_url = None
-    for bot in BOT_REVIEWERS:
+    for bot in load_bot_reviewers():
         bot_name = bot["name"]
         bot_status = bot_results.get(bot_name, "timeout")
         if bot_status == "reviewed":

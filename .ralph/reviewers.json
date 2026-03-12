@@ -1,0 +1,43 @@
+{
+  "description": "PR review bots that RALPH waits for. Set active=false to skip a reviewer.",
+  "reviewers": [
+    {
+      "name": "Gemini Code Assist",
+      "login": "gemini-code-assist[bot]",
+      "type": "review",
+      "active": true,
+      "quota_phrases": [
+        "reached your daily quota limit",
+        "wait up to 24 hours"
+      ]
+    },
+    {
+      "name": "Claude",
+      "login": "github-actions[bot]",
+      "type": "action",
+      "check_name": "claude-review",
+      "workflow_name": "Claude Code Review",
+      "active": false,
+      "quota_phrases": []
+    },
+    {
+      "name": "ChatGPT Codex",
+      "login": "chatgpt-codex-connector[bot]",
+      "type": "review",
+      "active": false,
+      "quota_phrases": [
+        "reached your Codex usage limits",
+        "usage dashboard"
+      ]
+    },
+    {
+      "name": "Gemini 3.1 Pro (custom)",
+      "login": "github-actions[bot]",
+      "type": "action",
+      "check_name": "gemini-review",
+      "workflow_name": "Gemini 3.1 Pro Review",
+      "active": true,
+      "quota_phrases": []
+    }
+  ]
+}
