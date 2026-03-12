@@ -300,6 +300,39 @@ mod tests {
     }
 
     #[test]
+    fn parse_get_track() {
+        let cli = Cli::try_parse_from(["copper-hollow", "get-track", "4"]).unwrap();
+        if let Some(Commands::GetTrack { index }) = cli.command {
+            assert_eq!(index, 4);
+        } else {
+            panic!("expected GetTrack");
+        }
+    }
+
+    #[test]
+    fn parse_get_pattern() {
+        let cli =
+            Cli::try_parse_from(["copper-hollow", "get-pattern", "6", "chorus"]).unwrap();
+        if let Some(Commands::GetPattern { track, part }) = cli.command {
+            assert_eq!(track, 6);
+            assert_eq!(part, "chorus");
+        } else {
+            panic!("expected GetPattern");
+        }
+    }
+
+    #[test]
+    fn parse_list_progressions() {
+        let cli =
+            Cli::try_parse_from(["copper-hollow", "list-progressions", "verse"]).unwrap();
+        if let Some(Commands::ListProgressions { part }) = cli.command {
+            assert_eq!(part, "verse");
+        } else {
+            panic!("expected ListProgressions");
+        }
+    }
+
+    #[test]
     fn parse_global_options() {
         let cli =
             Cli::try_parse_from(["copper-hollow", "--headless", "--seed", "42", "get-state"])
