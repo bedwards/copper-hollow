@@ -56,6 +56,9 @@ Review a pull request, verify checks pass, and merge or leave instructions.
 }
 ```
 
+## Context Loss
+Your context window is destroyed when this phase ends. The next worker (monitor) starts from zero. Your durable artifacts are **PR review comments**, **merge actions**, and **tags**. If you request changes, your review comments are the ONLY guidance the next work-phase worker will have — be specific and actionable (file, line, what's wrong, how to fix). If you merge, ensure the PR is squash-merged so the commit message is a clean record. If you create a tag, it must follow the versioning scheme in CLAUDE.md.
+
 ## Constraints
 - Do NOT modify code — only review
 - If requesting changes, be specific about what to fix

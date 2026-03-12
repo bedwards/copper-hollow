@@ -39,6 +39,9 @@ Create and update GitHub issues based on research findings and project specs.
 }
 ```
 
+## Context Loss
+Your context window is destroyed when this phase ends. The next worker (orchestrator) starts from zero. Your durable artifacts are the **GitHub issues** you create. Each issue must be self-contained — include enough context, acceptance criteria, and spec references that a future worker can implement it without needing your reasoning. If it's not in an issue, it doesn't exist for the next phase.
+
 ## Constraints
 - Create issues using `gh issue create`
 - Do NOT modify code files

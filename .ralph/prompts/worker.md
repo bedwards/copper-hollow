@@ -52,6 +52,9 @@ Implement a single GitHub issue on a feature branch and create a pull request.
 }
 ```
 
+## Context Loss
+Your context window is destroyed when this phase ends. The next worker (reviewer) starts from zero. Your durable artifacts are **committed and pushed code** and the **pull request**. The reviewer will only see the PR diff, PR body, and the GitHub issue — they have no access to your reasoning or decisions. Write a descriptive PR body explaining what you implemented and why you made the choices you did. Use clear commit messages. If you hit edge cases or made tradeoffs, document them in the PR body so the reviewer can evaluate them.
+
 ## Constraints
 - ONLY work on the assigned issue — do not scope creep
 - ONLY modify files relevant to the issue

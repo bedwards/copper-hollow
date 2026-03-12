@@ -40,6 +40,9 @@ Research the web and codebase to find improvements, bugs, new patterns, and oppo
 }
 ```
 
+## Context Loss
+Your context window is destroyed when this phase ends. The next worker (planner) starts from zero. Your JSON output is the ONLY artifact that survives. Make every finding detailed enough that the planner can create a GitHub issue from it without re-researching. Include specific file paths, version numbers, and concrete descriptions — not vague pointers.
+
 ## Constraints
 - Do NOT modify any files
 - Do NOT create issues or PRs
