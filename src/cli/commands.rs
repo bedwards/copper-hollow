@@ -79,7 +79,9 @@ fn build_response(command: &Commands, args: &Cli) -> serde_json::Value {
         Commands::GetTrack { index } => {
             let seed = args.seed.unwrap_or(42);
             let state = AppState::new(seed);
-            if *index >= state.song.tracks.len() {
+            if state.song.tracks.is_empty() {
+                serde_json::json!({"ok": false, "error": "no tracks in song"})
+            } else if *index >= state.song.tracks.len() {
                 serde_json::json!({"ok": false, "error": format!("Track index {} out of range (0-{})", index, state.song.tracks.len() - 1)})
             } else {
                 serde_json::json!({"ok": true, "data": state.song.tracks[*index]})
@@ -91,7 +93,9 @@ fn build_response(command: &Commands, args: &Cli) -> serde_json::Value {
             match part.parse::<SongPart>() {
                 Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
                 Ok(song_part) => {
-                    if *track >= state.song.tracks.len() {
+                    if state.song.tracks.is_empty() {
+                        serde_json::json!({"ok": false, "error": "no tracks in song"})
+                    } else if *track >= state.song.tracks.len() {
                         serde_json::json!({"ok": false, "error": format!("Track index {} out of range (0-{})", track, state.song.tracks.len() - 1)})
                     } else {
                         match state.song.tracks[*track].patterns.get(&song_part) {
