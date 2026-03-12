@@ -143,28 +143,43 @@
         "documentation"
       ],
       "priority": "medium"
+    },
+    {
+      "number": 59,
+      "title": "[bug] PR #54 stalled \u2014 version bump to 0.1.0 is mergeable but unmerged",
+      "labels": [
+        "bug"
+      ],
+      "priority": "medium"
+    },
+    {
+      "number": 60,
+      "title": "[build] Bump version to 0.2.0 and tag \u2014 first engine modules complete",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "medium"
     }
   ],
-  "last_groomed_at": "2026-03-12T10:47:29.004934+00:00",
+  "last_groomed_at": "2026-03-12T12:07:06.508976+00:00",
   "priority_order": [
-    10,
-    11,
-    5,
-    6,
-    7,
     8,
-    40,
-    51,
     38,
-    39,
-    12,
     16,
+    40,
+    39,
     17,
+    12,
+    51,
     18,
     13,
     14,
-    15,
     9,
-    49
+    60,
+    59,
+    49,
+    15,
+    28,
+    24
   ]
 }
