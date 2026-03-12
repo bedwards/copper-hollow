@@ -330,7 +330,7 @@ def wait_for_gemini_review(pr_number):
         log_phase("review", f"No Gemini review yet, polling... ({attempt}/{GEMINI_POLL_MAX_ATTEMPTS})")
         time.sleep(GEMINI_POLL_INTERVAL)
 
-    log_phase("review", "Gemini review not found within timeout — proceeding without it")
+    log_phase("review", "Gemini review not found within timeout — proceeding without it (may be quota-limited)")
     return False
 
 
@@ -347,6 +347,19 @@ def verify_review_posted(pr_number):
         return count > 0
     except (subprocess.TimeoutExpired, ValueError):
         return False
+
+
+def get_open_prs():
+    """Return list of open PR numbers for this repo."""
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "list", "--repo", GITHUB_REPO, "--state", "open",
+             "--json", "number,title", "--author", "@me"],
+            cwd=PROJECT_DIR, capture_output=True, text=True, timeout=30,
+        )
+        return json.loads(result.stdout) if result.returncode == 0 else []
+    except (subprocess.TimeoutExpired, json.JSONDecodeError):
+        return []
 
 
 def ensure_main():
@@ -458,6 +471,21 @@ def phase_orchestrate(dry_run=False):
     log_phase("orchestrate", "Starting orchestration phase")
     update_status(phase="orchestrate")
 
+    # Guard: refuse to pick new work if there are open PRs
+    open_prs = get_open_prs()
+    if open_prs:
+        pr_nums = [f"#{p['number']}" for p in open_prs]
+        log_phase("orchestrate",
+            f"BLOCKED: {len(open_prs)} open PR(s) ({', '.join(pr_nums)}). "
+            f"Finish existing work before starting new issues.")
+        # Set current_pr to the oldest open PR so review phase picks it up
+        oldest_pr = min(open_prs, key=lambda p: p["number"])
+        update_status(current_pr=oldest_pr["number"])
+        log_phase("orchestrate", f"Set current_pr to oldest open PR #{oldest_pr['number']}")
+        increment_phase_metric("orchestrate")
+        update_status(last_phase_completed="orchestrate")
+        return True
+
     prompt = build_orchestrate_prompt()
 
     if dry_run:
@@ -503,6 +531,17 @@ def phase_work(dry_run=False):
     """Phase 4: Implement the selected issue on a feature branch."""
     log_phase("work", "Starting work phase")
     update_status(phase="work")
+
+    # Guard: refuse to create new work if there are open PRs
+    open_prs = get_open_prs()
+    if open_prs:
+        pr_nums = [f"#{p['number']}" for p in open_prs]
+        log_phase("work",
+            f"BLOCKED: {len(open_prs)} open PR(s) ({', '.join(pr_nums)}). "
+            f"Review and merge existing PRs before creating new ones.")
+        increment_phase_metric("work")
+        update_status(last_phase_completed="work")
+        return True
 
     status = read_json(STATUS_FILE)
     issue = status.get("current_issue")
