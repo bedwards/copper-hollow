@@ -1,18 +1,18 @@
 {
-  "total_loops": 1,
+  "total_loops": 2,
   "total_issues_created": 18,
   "total_prs_created": 0,
   "total_prs_merged": 0,
-  "total_errors": 0,
+  "total_errors": 1,
   "consecutive_errors": 0,
   "last_rate_limit_at": null,
   "backoff_until": null,
   "phases_completed": {
     "research": 1,
-    "plan": 1,
-    "orchestrate": 1,
+    "plan": 2,
+    "orchestrate": 2,
     "work": 0,
-    "review": 0,
-    "monitor": 0
+    "review": 1,
+    "monitor": 1
   }
 }
