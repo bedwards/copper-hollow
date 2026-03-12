@@ -97,7 +97,7 @@ Downbeats (tick % 1920 == 0) get tighter humanization (÷2).
 ```
 base_variation = random_gauss(mean=0, std_dev=6)
 accent_curve: beat 1 = +10, beat 3 = +5, offbeats = -5
-part_dynamics: intro=0.6, verse=0.75, prechorus=0.85, chorus=1.0, bridge=0.7, outro=0.55
+part_dynamics: intro=0.55, verse=0.70, prechorus=0.82, chorus=1.0, bridge=0.65, outro=0.50
 final_velocity = clamp(base_vel + base_variation + accent_curve) × part_dynamics
 ```
 
