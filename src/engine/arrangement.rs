@@ -186,10 +186,7 @@ impl ArrangementEngine {
         diatonic: &[(ChordDegree, ChordQuality)],
     ) -> Chord {
         let idx = degree.to_index();
-        let quality = diatonic
-            .get(idx)
-            .map(|(_, q)| *q)
-            .unwrap_or(ChordQuality::Major);
+        let quality = diatonic[idx].1;
 
         let intervals = scale.scale_type.parent_diatonic_intervals();
         let root_semitone = intervals
@@ -224,9 +221,7 @@ impl ArrangementEngine {
             // - First bar after a part that had no drums (re-entry)
             let needs_crash = Self::needs_crash(song, section, prev);
             if needs_crash {
-                let crash_note = InstrumentType::CrashCymbal
-                    .gm_drum_note()
-                    .unwrap_or(49);
+                let crash_note = 49; // GM Crash Cymbal 1
                 transitions.push(TransitionEvent {
                     event: NoteEvent {
                         tick: section.start_tick,
@@ -245,9 +240,7 @@ impl ArrangementEngine {
                 if prev_drums_active {
                     let and_of_4_tick = prev_section.end_tick
                         .saturating_sub(TICKS_PER_BEAT / 2); // 240 ticks before end
-                    let open_hat_note = InstrumentType::OpenHiHat
-                        .gm_drum_note()
-                        .unwrap_or(46);
+                    let open_hat_note = 46; // GM Open Hi-Hat
                     transitions.push(TransitionEvent {
                         event: NoteEvent {
                             tick: and_of_4_tick,
