@@ -1,5 +1,169 @@
 {
-  "issues": [],
-  "last_groomed_at": null,
-  "priority_order": []
+  "issues": [
+    {
+      "number": 1,
+      "title": "[scaffold] Project scaffolding \u2014 Cargo.toml, module stubs, directory structure",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "high"
+    },
+    {
+      "number": 2,
+      "title": "[engine] Core data types \u2014 Song, Track, Pattern, NoteEvent",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "high"
+    },
+    {
+      "number": 3,
+      "title": "[engine] Music theory module \u2014 scales, chords, intervals",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "high"
+    },
+    {
+      "number": 4,
+      "title": "[engine] Rhythm engine \u2014 groove patterns, strum, humanization",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "high"
+    },
+    {
+      "number": 5,
+      "title": "[engine] Melody generator \u2014 contour, targeting, voice leading",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "medium"
+    },
+    {
+      "number": 6,
+      "title": "[engine] Drum pattern generator \u2014 genre-appropriate grooves",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "medium"
+    },
+    {
+      "number": 7,
+      "title": "[engine] Bass line generator \u2014 walking lines, approach notes",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "medium"
+    },
+    {
+      "number": 8,
+      "title": "[engine] Arrangement \u2014 song structure, transitions, dynamics",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "medium"
+    },
+    {
+      "number": 9,
+      "title": "[engine] Top-level composer orchestrator",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "medium"
+    },
+    {
+      "number": 10,
+      "title": "[state] Shared state, snapshots, undo/redo",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "high"
+    },
+    {
+      "number": 11,
+      "title": "[midi] MIDI file export via midly",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "high"
+    },
+    {
+      "number": 12,
+      "title": "[cli] CLI commands via clap",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "medium"
+    },
+    {
+      "number": 13,
+      "title": "[gui] Iced GUI application \u2014 dark theme, pattern view",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "medium"
+    },
+    {
+      "number": 14,
+      "title": "[bridge] TCP bridge server for Bitwig connection",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "low"
+    },
+    {
+      "number": 15,
+      "title": "[bitwig] Java Bitwig Studio extension",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "low"
+    },
+    {
+      "number": 16,
+      "title": "[ci] CI/CD pipeline \u2014 build, test, clippy, format",
+      "labels": [
+        "enhancement"
+      ],
+      "priority": "low"
+    },
+    {
+      "number": 17,
+      "title": "[testing] Core test suite \u2014 theory, determinism, CLI, MIDI round-trip",
+      "labels": [
+        "testing"
+      ],
+      "priority": "medium"
+    },
+    {
+      "number": 18,
+      "title": "[docs] Reference defaults and presets",
+      "labels": [
+        "documentation"
+      ],
+      "priority": "medium"
+    }
+  ],
+  "last_groomed_at": "2026-03-12T06:44:27.411050+00:00",
+  "priority_order": [
+    1,
+    2,
+    3,
+    10,
+    11,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    12,
+    16,
+    13,
+    14,
+    17,
+    18,
+    15
+  ]
 }
