@@ -376,7 +376,10 @@ impl MelodyEngine {
         let step = match motion {
             MotionType::Step => 1,
             MotionType::SmallLeap => 2,
-            MotionType::LargeLeap => self.rng.random_range(3i32..=5),
+            MotionType::LargeLeap => {
+                const LARGE_LEAP_INTERVALS: [i32; 3] = [3, 4, 7]; // 4th, 5th, octave
+                LARGE_LEAP_INTERVALS[self.rng.random_range(0..3)]
+            }
             MotionType::Repeat => 0,
         };
 
@@ -1088,6 +1091,44 @@ mod tests {
                 step_count,
                 total_intervals,
             );
+        }
+    }
+
+    // -- LargeLeap intervals -------------------------------------------------
+
+    #[test]
+    fn large_leap_produces_only_fourth_fifth_or_octave() {
+        let scale = c_major_scale();
+        let pitch_table = MelodyEngine::build_pitch_table(&scale, (36, 96));
+        let allowed_steps: std::collections::HashSet<usize> =
+            [3usize, 4, 7].iter().copied().collect();
+
+        // Run many iterations to exercise the RNG
+        for seed in 0..200u64 {
+            let mut engine = MelodyEngine::new(seed);
+            // Force LargeLeap by calling apply_motion with conditions that
+            // won't trigger the resolution or repeat-override paths
+            for _ in 0..50 {
+                let current = pitch_table.len() / 2;
+                let (new_idx, motion, _dir) = engine.apply_motion(
+                    current,
+                    pitch_table.len(),
+                    2.0, // positive contour offset => direction = 1
+                    MotionType::Step, // last motion != LargeLeap => no forced resolution
+                    1,
+                    0, // repeat_count = 0 => no forced step
+                );
+                if motion == MotionType::LargeLeap {
+                    let step = new_idx.abs_diff(current);
+                    assert!(
+                        allowed_steps.contains(&step),
+                        "LargeLeap produced step of {} scale degrees (seed={}) — \
+                         only 3 (4th), 4 (5th), or 7 (octave) are allowed",
+                        step,
+                        seed,
+                    );
+                }
+            }
         }
     }
 
