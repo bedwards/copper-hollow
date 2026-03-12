@@ -50,8 +50,8 @@ ERROR_BACKOFF_SECONDS = 30
 
 # Automated code review settings
 REVIEW_INITIAL_WAIT = 120  # Wait 2 min for bots to start posting
-REVIEW_POLL_INTERVAL = 20  # Poll every 20s after initial wait
-REVIEW_POLL_MAX_ATTEMPTS = 12  # Up to 4 more minutes of polling (6 min total max)
+REVIEW_POLL_INTERVAL = 30  # Poll every 30s after initial wait
+REVIEW_POLL_MAX_ATTEMPTS = 32  # Up to 16 more minutes of polling (18 min total max)
 GITHUB_REPO = "bedwards/copper-hollow"
 
 # Bot reviewer definitions
@@ -71,7 +71,8 @@ BOT_REVIEWERS = [
         "name": "Claude",
         "login": "github-actions[bot]",
         "type": "action",
-        "check_name": "claude",
+        "check_name": "claude-review",
+        "workflow_name": "Claude Code Review",
         "quota_phrases": [],
     },
     {
@@ -344,11 +345,11 @@ def check_bot_review_status(pr_number, bot):
     name = bot["name"]
 
     if bot["type"] == "action":
-        # Claude runs as GitHub Action — check PR checks status
+        # Claude runs as GitHub Action — check PR checks status and extract run URL
         try:
             result = subprocess.run(
                 ["gh", "pr", "checks", str(pr_number), "--repo", GITHUB_REPO,
-                 "--json", "name,state,completedAt"],
+                 "--json", "name,state,completedAt,link,workflow"],
                 cwd=PROJECT_DIR, capture_output=True, text=True, timeout=30,
             )
             if result.returncode == 0:
@@ -357,6 +358,10 @@ def check_bot_review_status(pr_number, bot):
                     if bot.get("check_name", "").lower() in check.get("name", "").lower():
                         state = check.get("state", "").upper()
                         if state in ("SUCCESS", "FAILURE", "COMPLETED", "NEUTRAL"):
+                            # Store the run URL so the reviewer can inspect it
+                            link = check.get("link", "")
+                            if link:
+                                bot["_last_run_url"] = link
                             return "reviewed"
                         elif state in ("PENDING", "IN_PROGRESS", "QUEUED"):
                             return "pending"
@@ -747,15 +752,33 @@ def phase_review(dry_run=False):
 
     # Tell the reviewer what bot reviews are available
     status_lines = []
-    for bot_name, status in bot_results.items():
-        if status == "reviewed":
+    claude_run_url = None
+    for bot in BOT_REVIEWERS:
+        bot_name = bot["name"]
+        bot_status = bot_results.get(bot_name, "timeout")
+        if bot_status == "reviewed":
             status_lines.append(f"- **{bot_name}**: HAS posted its review. Read it and address any findings.")
-        elif status == "quota_exhausted":
+            # If Claude Action, include the run URL for deeper inspection
+            if bot.get("type") == "action" and bot.get("_last_run_url"):
+                claude_run_url = bot["_last_run_url"]
+                status_lines.append(f"  - Action run: {claude_run_url}")
+        elif bot_status == "quota_exhausted":
             status_lines.append(f"- **{bot_name}**: Quota exhausted (daily limit reached). Skip — not available today.")
         else:
             status_lines.append(f"- **{bot_name}**: Did not post within timeout. Proceed without it.")
 
     prompt += f"\n\n## Automated Review Status\n" + "\n".join(status_lines) + "\n"
+
+    # Add Claude-specific instructions for reading Action output
+    if claude_run_url:
+        prompt += (
+            f"\n### Reading Claude Action output\n"
+            f"Claude reviews via GitHub Actions. To read its full review:\n"
+            f"1. `gh pr checks {pr_number}` — check status of claude-review\n"
+            f"2. `gh api repos/{GITHUB_REPO}/pulls/{pr_number}/comments` — Claude posts inline review comments here\n"
+            f"3. `gh api repos/{GITHUB_REPO}/pulls/{pr_number}/reviews --jq '.[] | select(.user.login == \"github-actions[bot]\") | .body'` — read summary review\n"
+            f"4. If no comments found, check the Action logs: extract the run ID from the URL and use `gh run view <run-id> --log`\n"
+        )
 
     # Count how many bots actually reviewed (not quota-limited or timed out)
     bots_with_reviews = [name for name, s in bot_results.items() if s == "reviewed"]
@@ -765,8 +788,9 @@ def phase_review(dry_run=False):
     success, output, parsed = run_claude(
         prompt,
         model="opus",
-        max_turns=25,
-        timeout=600,
+        max_turns=40,
+        budget=5.0,
+        timeout=900,
     )
 
     if success and parsed:
