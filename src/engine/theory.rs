@@ -207,6 +207,24 @@ impl Scale {
             .collect()
     }
 
+    /// Test whether a pitch class belongs to this scale (considering enabled degrees).
+    pub fn contains(&self, pitch: PitchClass) -> bool {
+        self.pitch_classes().contains(&pitch)
+    }
+
+    /// Return the nth scale degree (0-based) as a pitch class.
+    /// Returns `None` if `n` is out of range or the degree is disabled.
+    pub fn degree(&self, n: usize) -> Option<PitchClass> {
+        let intervals = self.scale_type.intervals();
+        if n >= intervals.len() {
+            return None;
+        }
+        if !self.enabled_degrees.get(n).copied().unwrap_or(true) {
+            return None;
+        }
+        Some(self.root.transpose(intervals[n] as i8))
+    }
+
     /// Derive diatonic triads for each of the 7 scale degrees.
     /// For pentatonic/blues, uses the parent diatonic scale.
     pub fn diatonic_chords(&self) -> Vec<(ChordDegree, ChordQuality)> {
@@ -376,6 +394,109 @@ pub struct Chord {
     pub degree: ChordDegree,
     /// 0 = root position, 1 = first inversion, 2 = second inversion.
     pub inversion: u8,
+}
+
+impl Chord {
+    /// Return the pitch classes in this chord based on root and quality.
+    pub fn notes(&self) -> Vec<PitchClass> {
+        self.quality
+            .intervals()
+            .iter()
+            .map(|&offset| self.root.transpose(offset as i8))
+            .collect()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Interval
+// ---------------------------------------------------------------------------
+
+/// Named intervals with their semitone distances.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Interval {
+    Unison,
+    MinorSecond,
+    MajorSecond,
+    MinorThird,
+    MajorThird,
+    PerfectFourth,
+    Tritone,
+    PerfectFifth,
+    MinorSixth,
+    MajorSixth,
+    MinorSeventh,
+    MajorSeventh,
+    Octave,
+}
+
+impl Interval {
+    /// Semitone distance for this interval.
+    pub fn semitones(self) -> u8 {
+        match self {
+            Interval::Unison => 0,
+            Interval::MinorSecond => 1,
+            Interval::MajorSecond => 2,
+            Interval::MinorThird => 3,
+            Interval::MajorThird => 4,
+            Interval::PerfectFourth => 5,
+            Interval::Tritone => 6,
+            Interval::PerfectFifth => 7,
+            Interval::MinorSixth => 8,
+            Interval::MajorSixth => 9,
+            Interval::MinorSeventh => 10,
+            Interval::MajorSeventh => 11,
+            Interval::Octave => 12,
+        }
+    }
+
+    /// Create an interval from a semitone count (0-12).
+    /// Returns `None` for values outside this range.
+    pub fn from_semitones(semitones: u8) -> Option<Self> {
+        match semitones {
+            0 => Some(Interval::Unison),
+            1 => Some(Interval::MinorSecond),
+            2 => Some(Interval::MajorSecond),
+            3 => Some(Interval::MinorThird),
+            4 => Some(Interval::MajorThird),
+            5 => Some(Interval::PerfectFourth),
+            6 => Some(Interval::Tritone),
+            7 => Some(Interval::PerfectFifth),
+            8 => Some(Interval::MinorSixth),
+            9 => Some(Interval::MajorSixth),
+            10 => Some(Interval::MinorSeventh),
+            11 => Some(Interval::MajorSeventh),
+            12 => Some(Interval::Octave),
+            _ => None,
+        }
+    }
+
+    /// Compute the interval between two pitch classes (ascending, 0-11 semitones).
+    pub fn between(from: PitchClass, to: PitchClass) -> Option<Self> {
+        let diff = (to.to_semitone() as i16 - from.to_semitone() as i16).rem_euclid(12) as u8;
+        Self::from_semitones(diff)
+    }
+}
+
+impl fmt::Display for Interval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Interval::Unison => "P1",
+            Interval::MinorSecond => "m2",
+            Interval::MajorSecond => "M2",
+            Interval::MinorThird => "m3",
+            Interval::MajorThird => "M3",
+            Interval::PerfectFourth => "P4",
+            Interval::Tritone => "TT",
+            Interval::PerfectFifth => "P5",
+            Interval::MinorSixth => "m6",
+            Interval::MajorSixth => "M6",
+            Interval::MinorSeventh => "m7",
+            Interval::MajorSeventh => "M7",
+            Interval::Octave => "P8",
+        };
+        write!(f, "{name}")
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -606,6 +727,154 @@ mod tests {
         assert_eq!(json, r#""IV""#);
         let parsed: ChordDegree = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, deg);
+    }
+
+    // -- Scale::contains ---------------------------------------------------
+
+    #[test]
+    fn scale_contains_member() {
+        let scale = Scale::new(PitchClass::C, ScaleType::Major);
+        assert!(scale.contains(PitchClass::C));
+        assert!(scale.contains(PitchClass::E));
+        assert!(scale.contains(PitchClass::G));
+        assert!(!scale.contains(PitchClass::Cs));
+        assert!(!scale.contains(PitchClass::Fs));
+    }
+
+    #[test]
+    fn scale_contains_respects_disabled_degrees() {
+        let mut scale = Scale::new(PitchClass::C, ScaleType::Major);
+        assert!(scale.contains(PitchClass::E)); // 3rd degree
+        scale.enabled_degrees[2] = false;
+        assert!(!scale.contains(PitchClass::E));
+    }
+
+    // -- Scale::degree -----------------------------------------------------
+
+    #[test]
+    fn scale_degree_returns_correct_pitch() {
+        let scale = Scale::new(PitchClass::C, ScaleType::Major);
+        assert_eq!(scale.degree(0), Some(PitchClass::C));
+        assert_eq!(scale.degree(2), Some(PitchClass::E));
+        assert_eq!(scale.degree(4), Some(PitchClass::G));
+        assert_eq!(scale.degree(6), Some(PitchClass::B));
+    }
+
+    #[test]
+    fn scale_degree_out_of_range() {
+        let scale = Scale::new(PitchClass::C, ScaleType::Major);
+        assert_eq!(scale.degree(7), None);
+        assert_eq!(scale.degree(100), None);
+    }
+
+    #[test]
+    fn scale_degree_disabled_returns_none() {
+        let mut scale = Scale::new(PitchClass::C, ScaleType::Major);
+        scale.enabled_degrees[3] = false;
+        assert_eq!(scale.degree(3), None);
+    }
+
+    #[test]
+    fn pentatonic_degree() {
+        let scale = Scale::new(PitchClass::G, ScaleType::MinorPentatonic);
+        assert_eq!(scale.degree(0), Some(PitchClass::G));
+        assert_eq!(scale.degree(1), Some(PitchClass::As)); // Bb
+        assert_eq!(scale.degree(4), Some(PitchClass::F));
+        assert_eq!(scale.degree(5), None); // only 5 notes
+    }
+
+    // -- Chord::notes ------------------------------------------------------
+
+    #[test]
+    fn chord_notes_major() {
+        let chord = Chord {
+            root: PitchClass::C,
+            quality: ChordQuality::Major,
+            degree: ChordDegree::I,
+            inversion: 0,
+        };
+        assert_eq!(chord.notes(), vec![PitchClass::C, PitchClass::E, PitchClass::G]);
+    }
+
+    #[test]
+    fn chord_notes_minor() {
+        let chord = Chord {
+            root: PitchClass::A,
+            quality: ChordQuality::Minor,
+            degree: ChordDegree::VI,
+            inversion: 0,
+        };
+        assert_eq!(chord.notes(), vec![PitchClass::A, PitchClass::C, PitchClass::E]);
+    }
+
+    #[test]
+    fn chord_notes_dominant7() {
+        let chord = Chord {
+            root: PitchClass::G,
+            quality: ChordQuality::Dominant7,
+            degree: ChordDegree::V,
+            inversion: 0,
+        };
+        assert_eq!(
+            chord.notes(),
+            vec![PitchClass::G, PitchClass::B, PitchClass::D, PitchClass::F]
+        );
+    }
+
+    // -- Interval ----------------------------------------------------------
+
+    #[test]
+    fn interval_semitones() {
+        assert_eq!(Interval::Unison.semitones(), 0);
+        assert_eq!(Interval::MinorThird.semitones(), 3);
+        assert_eq!(Interval::MajorThird.semitones(), 4);
+        assert_eq!(Interval::PerfectFifth.semitones(), 7);
+        assert_eq!(Interval::Octave.semitones(), 12);
+    }
+
+    #[test]
+    fn interval_from_semitones() {
+        assert_eq!(Interval::from_semitones(0), Some(Interval::Unison));
+        assert_eq!(Interval::from_semitones(7), Some(Interval::PerfectFifth));
+        assert_eq!(Interval::from_semitones(12), Some(Interval::Octave));
+        assert_eq!(Interval::from_semitones(13), None);
+    }
+
+    #[test]
+    fn interval_between_pitch_classes() {
+        assert_eq!(
+            Interval::between(PitchClass::C, PitchClass::E),
+            Some(Interval::MajorThird)
+        );
+        assert_eq!(
+            Interval::between(PitchClass::C, PitchClass::G),
+            Some(Interval::PerfectFifth)
+        );
+        assert_eq!(
+            Interval::between(PitchClass::C, PitchClass::C),
+            Some(Interval::Unison)
+        );
+        // G to C ascending = perfect fourth (5 semitones)
+        assert_eq!(
+            Interval::between(PitchClass::G, PitchClass::C),
+            Some(Interval::PerfectFourth)
+        );
+    }
+
+    #[test]
+    fn interval_display() {
+        assert_eq!(Interval::PerfectFifth.to_string(), "P5");
+        assert_eq!(Interval::MinorThird.to_string(), "m3");
+        assert_eq!(Interval::MajorSeventh.to_string(), "M7");
+    }
+
+    #[test]
+    fn interval_serde_roundtrip() {
+        let interval = Interval::PerfectFifth;
+        let json = serde_json::to_string(&interval).unwrap();
+        assert_eq!(json, r#""perfect_fifth""#);
+        let parsed: Interval = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, interval);
     }
 
     // -- Scale serde -------------------------------------------------------
