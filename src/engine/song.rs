@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use super::theory::{ChordDegree, Scale};
+use super::theory::{ChordDegree, PitchClass, Scale, ScaleType};
 
 // ---------------------------------------------------------------------------
 // SongPart
@@ -236,6 +236,24 @@ impl Pattern {
     }
 }
 
+impl StrumPattern {
+    /// Default "Folk Strum" pattern: D . D U . U D U over 4 beats.
+    pub fn default_folk() -> Self {
+        Self {
+            name: "Folk Strum".to_string(),
+            hits: vec![
+                StrumHit { tick_offset: 0, direction: StrumDirection::Down, velocity_factor: 1.0, stagger_ms: 12.0 },
+                StrumHit { tick_offset: 480, direction: StrumDirection::Down, velocity_factor: 0.8, stagger_ms: 10.0 },
+                StrumHit { tick_offset: 720, direction: StrumDirection::Up, velocity_factor: 0.6, stagger_ms: 6.0 },
+                StrumHit { tick_offset: 1200, direction: StrumDirection::Up, velocity_factor: 0.6, stagger_ms: 6.0 },
+                StrumHit { tick_offset: 1440, direction: StrumDirection::Down, velocity_factor: 0.85, stagger_ms: 10.0 },
+                StrumHit { tick_offset: 1680, direction: StrumDirection::Up, velocity_factor: 0.6, stagger_ms: 6.0 },
+            ],
+            beats: 4,
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Track
 // ---------------------------------------------------------------------------
@@ -253,6 +271,24 @@ pub struct Track {
     pub patterns: HashMap<SongPart, Pattern>,
     pub automation: HashMap<SongPart, Vec<CcEvent>>,
     pub active_parts: HashMap<SongPart, bool>,
+}
+
+impl Track {
+    /// Create a new track with empty patterns and no active parts.
+    pub fn new(id: u8, name: &str, role: TrackRole, instrument: InstrumentType, voicing: Voicing) -> Self {
+        Self {
+            id,
+            name: name.to_string(),
+            role,
+            instrument,
+            voicing,
+            muted: false,
+            solo: false,
+            patterns: HashMap::new(),
+            automation: HashMap::new(),
+            active_parts: HashMap::new(),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -275,4 +311,356 @@ pub struct Song {
     pub strum_pattern: StrumPattern,
     /// 0.0 = straight, 1.0 = full triplet swing.
     pub swing: f32,
+}
+
+impl Song {
+    /// Build the default song matching docs/reference/DEFAULTS.md.
+    pub fn default_song() -> Self {
+        use InstrumentType::*;
+        use SongPart::*;
+        use TrackRole::*;
+        use Voicing::*;
+
+        // Active-parts matrix from DEFAULTS.md  (I V P C B O)
+        type TrackDef<'a> = (u8, &'a str, TrackRole, InstrumentType, Voicing, [bool; 6]);
+        let layout: Vec<TrackDef<'_>> = vec![
+            ( 0, "Kick",            Drum,         Kick,            Poly, [false, true,  true,  true,  true,  false]),
+            ( 1, "Snare",           Drum,         Snare,           Poly, [false, true,  true,  true,  true,  false]),
+            ( 2, "Hi-Hat",          Drum,         HiHat,           Poly, [false, true,  true,  true,  true,  false]),
+            ( 3, "Tambourine",      Drum,         Tambourine,      Poly, [false, false, false, true,  false, false]),
+            ( 4, "Acoustic Guitar", Rhythm,       AcousticGuitar,  Poly, [true,  true,  true,  true,  true,  true ]),
+            ( 5, "Electric Guitar", Rhythm,       ElectricGuitar,  Poly, [false, false, true,  true,  false, false]),
+            ( 6, "Electric Bass",   Bass,         ElectricBass,    Mono, [false, true,  true,  true,  true,  false]),
+            ( 7, "Piano",           Rhythm,       Piano,           Poly, [true,  true,  true,  true,  true,  true ]),
+            ( 8, "Pedal Steel",     LeadMelody,   PedalSteel,      Mono, [false, false, false, true,  true,  false]),
+            ( 9, "Mandolin",        CounterMelody,Mandolin,        Mono, [false, true,  true,  true,  false, false]),
+            (10, "Banjo",           Rhythm,       Banjo,           Poly, [false, false, false, true,  false, false]),
+            (11, "Hammond Organ",   PadSustain,   HammondOrgan,    Poly, [false, false, true,  true,  true,  false]),
+            (12, "Pad",             PadSustain,   Pad,             Poly, [true,  false, true,  false, true,  true ]),
+            (13, "Lead Melody",     LeadMelody,   AcousticGuitar,  Mono, [false, true,  true,  true,  true,  false]),
+            (14, "Counter Melody",  CounterMelody,Mandolin,        Mono, [false, false, false, true,  false, false]),
+            (15, "Shaker",          Drum,         Shaker,          Poly, [false, false, false, true,  false, false]),
+        ];
+
+        let parts_order = [Intro, Verse, PreChorus, Chorus, Bridge, Outro];
+
+        let tracks: Vec<Track> = layout
+            .into_iter()
+            .map(|(id, name, role, instrument, voicing, active)| {
+                let mut t = Track::new(id, name, role, instrument, voicing);
+                for (i, &part) in parts_order.iter().enumerate() {
+                    t.active_parts.insert(part, active[i]);
+                }
+                t
+            })
+            .collect();
+
+        let mut progressions = HashMap::new();
+        progressions.insert(Intro, vec![ChordDegree::I]);
+        progressions.insert(Verse, vec![ChordDegree::I, ChordDegree::V, ChordDegree::VI, ChordDegree::IV]);
+        progressions.insert(PreChorus, vec![ChordDegree::IV, ChordDegree::V]);
+        progressions.insert(Chorus, vec![ChordDegree::I, ChordDegree::V, ChordDegree::VI, ChordDegree::IV]);
+        progressions.insert(Bridge, vec![ChordDegree::VI, ChordDegree::V, ChordDegree::IV]);
+        progressions.insert(Outro, vec![ChordDegree::IV, ChordDegree::I]);
+
+        let structure = vec![
+            Intro, Verse, PreChorus, Chorus,
+            Verse, PreChorus, Chorus,
+            Bridge, Chorus, Outro,
+        ];
+
+        let rhythm_scale = Scale::new(PitchClass::As, ScaleType::Major); // Bb Major
+        let mut lead_scale = Scale::new(PitchClass::G, ScaleType::MinorPentatonic);
+        lead_scale.passing_tones.push(6); // C#/Db passing tone
+
+        Self {
+            title: "Untitled Folk Song".to_string(),
+            tempo: 120.0,
+            time_signature: (4, 4),
+            rhythm_scale,
+            lead_scale,
+            tracks,
+            structure,
+            progressions,
+            strum_pattern: StrumPattern::default_folk(),
+            swing: 0.0,
+        }
+    }
+
+    /// Total bar count from the song structure.
+    pub fn total_bars(&self) -> u32 {
+        self.structure.iter().map(|p| p.typical_bars()).sum()
+    }
+
+    /// Total length in ticks.
+    pub fn total_ticks(&self) -> u32 {
+        self.total_bars() * super::TICKS_PER_BAR
+    }
+}
+
+impl std::fmt::Display for SongPart {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SongPart::Intro => write!(f, "Intro"),
+            SongPart::Verse => write!(f, "Verse"),
+            SongPart::PreChorus => write!(f, "PreChorus"),
+            SongPart::Chorus => write!(f, "Chorus"),
+            SongPart::Bridge => write!(f, "Bridge"),
+            SongPart::Outro => write!(f, "Outro"),
+        }
+    }
+}
+
+impl std::fmt::Display for TrackRole {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TrackRole::Rhythm => write!(f, "Rhythm"),
+            TrackRole::LeadMelody => write!(f, "Lead"),
+            TrackRole::CounterMelody => write!(f, "Counter"),
+            TrackRole::Bass => write!(f, "Bass"),
+            TrackRole::Drum => write!(f, "Drum"),
+            TrackRole::PadSustain => write!(f, "Pad"),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn song_part_typical_bars() {
+        assert_eq!(SongPart::Intro.typical_bars(), 4);
+        assert_eq!(SongPart::Verse.typical_bars(), 8);
+        assert_eq!(SongPart::PreChorus.typical_bars(), 4);
+        assert_eq!(SongPart::Chorus.typical_bars(), 8);
+        assert_eq!(SongPart::Bridge.typical_bars(), 8);
+        assert_eq!(SongPart::Outro.typical_bars(), 4);
+    }
+
+    #[test]
+    fn song_part_from_str() {
+        assert_eq!("intro".parse::<SongPart>().unwrap(), SongPart::Intro);
+        assert_eq!("prechorus".parse::<SongPart>().unwrap(), SongPart::PreChorus);
+        assert_eq!("pre_chorus".parse::<SongPart>().unwrap(), SongPart::PreChorus);
+        assert!("unknown".parse::<SongPart>().is_err());
+    }
+
+    #[test]
+    fn song_part_display() {
+        assert_eq!(SongPart::Intro.to_string(), "Intro");
+        assert_eq!(SongPart::PreChorus.to_string(), "PreChorus");
+    }
+
+    #[test]
+    fn song_part_serde_roundtrip() {
+        let part = SongPart::PreChorus;
+        let json = serde_json::to_string(&part).unwrap();
+        assert_eq!(json, r#""prechorus""#);
+        let parsed: SongPart = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, part);
+    }
+
+    #[test]
+    fn instrument_type_percussion() {
+        assert!(InstrumentType::Kick.is_percussion());
+        assert!(InstrumentType::Snare.is_percussion());
+        assert!(InstrumentType::Shaker.is_percussion());
+        assert!(!InstrumentType::AcousticGuitar.is_percussion());
+        assert!(!InstrumentType::Piano.is_percussion());
+    }
+
+    #[test]
+    fn instrument_type_midi_range() {
+        assert_eq!(InstrumentType::AcousticGuitar.midi_range(), (40, 79));
+        assert_eq!(InstrumentType::ElectricBass.midi_range(), (28, 55));
+        assert_eq!(InstrumentType::Kick.midi_range(), (36, 36));
+    }
+
+    #[test]
+    fn track_role_serde_roundtrip() {
+        let role = TrackRole::LeadMelody;
+        let json = serde_json::to_string(&role).unwrap();
+        assert_eq!(json, r#""lead""#);
+        let parsed: TrackRole = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, role);
+
+        let role2 = TrackRole::PadSustain;
+        let json2 = serde_json::to_string(&role2).unwrap();
+        assert_eq!(json2, r#""pad""#);
+    }
+
+    #[test]
+    fn voicing_serde_roundtrip() {
+        let v = Voicing::Mono;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, r#""mono""#);
+        let parsed: Voicing = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, v);
+    }
+
+    #[test]
+    fn note_event_serde_roundtrip() {
+        let event = NoteEvent {
+            tick: 480,
+            note: 60,
+            velocity: 100,
+            duration: 240,
+            channel: 0,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let parsed: NoteEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, event);
+    }
+
+    #[test]
+    fn cc_event_serde_roundtrip() {
+        let event = CcEvent {
+            tick: 0,
+            cc: 255,
+            value: 8192,
+            channel: 5,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let parsed: CcEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, event);
+    }
+
+    #[test]
+    fn pattern_empty_length() {
+        let p = Pattern::empty(4);
+        assert_eq!(p.bars, 4);
+        assert_eq!(p.length_ticks, 4 * crate::engine::TICKS_PER_BAR);
+        assert!(p.events.is_empty());
+        assert!(p.cc_events.is_empty());
+    }
+
+    #[test]
+    fn pattern_serde_roundtrip() {
+        let mut p = Pattern::empty(2);
+        p.events.push(NoteEvent {
+            tick: 0,
+            note: 60,
+            velocity: 80,
+            duration: 480,
+            channel: 0,
+        });
+        let json = serde_json::to_string(&p).unwrap();
+        let parsed: Pattern = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, p);
+    }
+
+    #[test]
+    fn strum_pattern_default_folk() {
+        let sp = StrumPattern::default_folk();
+        assert_eq!(sp.name, "Folk Strum");
+        assert_eq!(sp.beats, 4);
+        assert_eq!(sp.hits.len(), 6);
+        assert_eq!(sp.hits[0].direction, StrumDirection::Down);
+        assert!((sp.hits[0].velocity_factor - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn track_new() {
+        let t = Track::new(4, "Acoustic Guitar", TrackRole::Rhythm, InstrumentType::AcousticGuitar, Voicing::Poly);
+        assert_eq!(t.id, 4);
+        assert_eq!(t.name, "Acoustic Guitar");
+        assert_eq!(t.role, TrackRole::Rhythm);
+        assert!(!t.muted);
+        assert!(!t.solo);
+        assert!(t.patterns.is_empty());
+    }
+
+    #[test]
+    fn track_serde_roundtrip() {
+        let t = Track::new(0, "Kick", TrackRole::Drum, InstrumentType::Kick, Voicing::Poly);
+        let json = serde_json::to_string(&t).unwrap();
+        let parsed: Track = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, t);
+    }
+
+    #[test]
+    fn default_song_has_16_tracks() {
+        let song = Song::default_song();
+        assert_eq!(song.tracks.len(), 16);
+        for (i, track) in song.tracks.iter().enumerate() {
+            assert_eq!(track.id, i as u8);
+        }
+    }
+
+    #[test]
+    fn default_song_structure() {
+        let song = Song::default_song();
+        assert_eq!(
+            song.structure,
+            vec![
+                SongPart::Intro, SongPart::Verse, SongPart::PreChorus, SongPart::Chorus,
+                SongPart::Verse, SongPart::PreChorus, SongPart::Chorus,
+                SongPart::Bridge, SongPart::Chorus, SongPart::Outro,
+            ]
+        );
+    }
+
+    #[test]
+    fn default_song_total_bars() {
+        let song = Song::default_song();
+        // 4+8+4+8+8+4+8+8+8+4 = 64 bars  (Verse/PreChorus/Chorus appear twice)
+        // Wait: Intro=4, Verse=8, PreChorus=4, Chorus=8, Verse=8, PreChorus=4, Chorus=8, Bridge=8, Chorus=8, Outro=4 = 64
+        assert_eq!(song.total_bars(), 64);
+    }
+
+    #[test]
+    fn default_song_defaults() {
+        let song = Song::default_song();
+        assert_eq!(song.title, "Untitled Folk Song");
+        assert!((song.tempo - 120.0).abs() < f64::EPSILON);
+        assert_eq!(song.time_signature, (4, 4));
+        assert!((song.swing - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn default_song_scales() {
+        let song = Song::default_song();
+        use super::super::theory::{PitchClass, ScaleType};
+        assert_eq!(song.rhythm_scale.root, PitchClass::As); // Bb
+        assert_eq!(song.rhythm_scale.scale_type, ScaleType::Major);
+        assert_eq!(song.lead_scale.root, PitchClass::G);
+        assert_eq!(song.lead_scale.scale_type, ScaleType::MinorPentatonic);
+        assert_eq!(song.lead_scale.passing_tones, vec![6]);
+    }
+
+    #[test]
+    fn default_song_progressions() {
+        let song = Song::default_song();
+        let verse_prog = song.progressions.get(&SongPart::Verse).unwrap();
+        assert_eq!(
+            verse_prog,
+            &vec![ChordDegree::I, ChordDegree::V, ChordDegree::VI, ChordDegree::IV]
+        );
+    }
+
+    #[test]
+    fn default_song_active_parts() {
+        let song = Song::default_song();
+        // Acoustic Guitar (ch 4) is active in all parts
+        let ag = &song.tracks[4];
+        assert_eq!(ag.active_parts.get(&SongPart::Intro), Some(&true));
+        assert_eq!(ag.active_parts.get(&SongPart::Outro), Some(&true));
+        // Kick (ch 0) is silent in intro and outro
+        let kick = &song.tracks[0];
+        assert_eq!(kick.active_parts.get(&SongPart::Intro), Some(&false));
+        assert_eq!(kick.active_parts.get(&SongPart::Verse), Some(&true));
+    }
+
+    #[test]
+    fn song_serde_roundtrip() {
+        let song = Song::default_song();
+        let json = serde_json::to_string(&song).unwrap();
+        let parsed: Song = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, song);
+    }
 }
