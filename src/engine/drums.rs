@@ -46,6 +46,10 @@ pub enum HiHatMode {
 // DrumHumanize
 // ---------------------------------------------------------------------------
 
+/// Velocity threshold below which a snare/rimshot hit is considered a ghost note.
+/// Ghost notes in the spec are vel 30-45; regular backbeats are 70+.
+const GHOST_NOTE_VELOCITY_THRESHOLD: u8 = 50;
+
 /// Per-instrument drum humanization parameters from spec.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DrumHumanize {
@@ -127,17 +131,27 @@ impl DrumEngine {
     }
 
     /// Apply drum-specific humanization to events in place.
+    ///
+    /// For snare/rimshot instruments, ghost notes are detected per-event by
+    /// velocity threshold (`GHOST_NOTE_VELOCITY_THRESHOLD`). Ghost notes get
+    /// looser timing (±10 ticks) while regular hits stay tight (±4 ticks).
     fn humanize_events(
         &mut self,
         events: &mut [NoteEvent],
         instrument: InstrumentType,
-        is_ghost: bool,
         part: SongPart,
     ) {
-        let params = DrumHumanize::for_instrument(instrument, is_ghost);
         let intensity = drum_intensity(part);
 
         for event in events.iter_mut() {
+            // Detect ghost notes per-event for snare/rimshot
+            let is_ghost = matches!(
+                instrument,
+                InstrumentType::Snare | InstrumentType::Rimshot
+            ) && event.velocity < GHOST_NOTE_VELOCITY_THRESHOLD;
+
+            let params = DrumHumanize::for_instrument(instrument, is_ghost);
+
             // Timing offset
             let timing_offset = self
                 .gauss(0.0, params.timing_ticks as f64)
@@ -608,23 +622,23 @@ impl DrumEngine {
 
             // Kick
             let mut kick = self.generate_kick_bar(bar_offset, config.part, config.channel);
-            self.humanize_events(&mut kick, InstrumentType::Kick, false, config.part);
+            self.humanize_events(&mut kick, InstrumentType::Kick, config.part);
             all_events.append(&mut kick);
 
             // Snare
             let mut snare = self.generate_snare_bar(bar_offset, config.part, config.channel);
-            self.humanize_events(&mut snare, InstrumentType::Snare, false, config.part);
+            self.humanize_events(&mut snare, InstrumentType::Snare, config.part);
             all_events.append(&mut snare);
 
             // Hi-Hat vs Ride (bridge alternates based on per-part coin flip)
             if config.part == SongPart::Bridge && bridge_uses_ride {
                 let mut ride = self.generate_ride_bar(bar_offset, config.channel);
-                self.humanize_events(&mut ride, InstrumentType::RideCymbal, false, config.part);
+                self.humanize_events(&mut ride, InstrumentType::RideCymbal, config.part);
                 all_events.append(&mut ride);
             } else {
                 let mut hihat =
                     self.generate_hihat_bar(bar_offset, config.part, config.channel);
-                self.humanize_events(&mut hihat, InstrumentType::HiHat, false, config.part);
+                self.humanize_events(&mut hihat, InstrumentType::HiHat, config.part);
                 all_events.append(&mut hihat);
             }
 
@@ -637,7 +651,6 @@ impl DrumEngine {
                 self.humanize_events(
                     &mut tamb,
                     InstrumentType::Tambourine,
-                    false,
                     config.part,
                 );
                 all_events.append(&mut tamb);
@@ -654,7 +667,6 @@ impl DrumEngine {
                 self.humanize_events(
                     &mut shaker,
                     InstrumentType::Shaker,
-                    false,
                     config.part,
                 );
                 all_events.append(&mut shaker);
@@ -673,7 +685,6 @@ impl DrumEngine {
                 self.humanize_events(
                     &mut cowbell,
                     InstrumentType::Cowbell,
-                    false,
                     config.part,
                 );
                 all_events.append(&mut cowbell);
@@ -692,7 +703,6 @@ impl DrumEngine {
                 self.humanize_events(
                     &mut crash,
                     InstrumentType::CrashCymbal,
-                    false,
                     config.part,
                 );
                 all_events.append(&mut crash);
@@ -1170,7 +1180,7 @@ mod tests {
             channel: 9,
         }];
 
-        engine.humanize_events(&mut events, InstrumentType::Kick, false, SongPart::Chorus);
+        engine.humanize_events(&mut events, InstrumentType::Kick, SongPart::Chorus);
 
         let diff = events[0].tick.abs_diff(large_tick);
         assert!(
@@ -1191,13 +1201,137 @@ mod tests {
             channel: 9,
         }];
 
-        engine.humanize_events(&mut events, InstrumentType::Kick, false, SongPart::Chorus);
+        engine.humanize_events(&mut events, InstrumentType::Kick, SongPart::Chorus);
 
         assert!(
             events[0].tick <= 10,
             "tick {} too large for near-zero input",
             events[0].tick,
         );
+    }
+
+    // -- Ghost note humanization detection -----------------------------------
+
+    #[test]
+    fn ghost_snare_gets_looser_timing_than_regular() {
+        // Run many iterations to verify statistical difference in timing spread.
+        // Ghost notes (vel < 50) should use ±10 tick params; regular (vel >= 50) use ±4.
+        let base_tick: u32 = 1000;
+        let iterations = 200;
+
+        let mut ghost_total_drift: f64 = 0.0;
+        let mut regular_total_drift: f64 = 0.0;
+
+        for i in 0..iterations {
+            // Ghost note event (vel 35, well below threshold)
+            let mut ghost_events = vec![NoteEvent {
+                tick: base_tick,
+                note: 38,
+                velocity: 35,
+                duration: 30,
+                channel: 9,
+            }];
+            let mut engine = DrumEngine::new(i);
+            engine.humanize_events(&mut ghost_events, InstrumentType::Snare, SongPart::Chorus);
+            ghost_total_drift += (ghost_events[0].tick as f64 - base_tick as f64).abs();
+
+            // Regular snare event (vel 100)
+            let mut regular_events = vec![NoteEvent {
+                tick: base_tick,
+                note: 38,
+                velocity: 100,
+                duration: 120,
+                channel: 9,
+            }];
+            let mut engine2 = DrumEngine::new(i);
+            engine2.humanize_events(&mut regular_events, InstrumentType::Snare, SongPart::Chorus);
+            regular_total_drift += (regular_events[0].tick as f64 - base_tick as f64).abs();
+        }
+
+        let ghost_avg = ghost_total_drift / iterations as f64;
+        let regular_avg = regular_total_drift / iterations as f64;
+
+        // Ghost notes (±10 tick std dev) should have noticeably wider average drift
+        // than regular notes (±4 tick std dev). With 200 samples this is very reliable.
+        assert!(
+            ghost_avg > regular_avg,
+            "ghost avg drift ({:.2}) should exceed regular avg drift ({:.2})",
+            ghost_avg,
+            regular_avg,
+        );
+    }
+
+    #[test]
+    fn ghost_detection_uses_velocity_threshold() {
+        // Events at exactly the threshold boundary: vel 49 = ghost, vel 50 = regular
+        let base_tick: u32 = 1000;
+
+        let mut below_drifts = Vec::new();
+        let mut at_drifts = Vec::new();
+
+        for i in 0..100u64 {
+            let mut below = vec![NoteEvent {
+                tick: base_tick,
+                note: 38,
+                velocity: 49, // below threshold
+                duration: 30,
+                channel: 9,
+            }];
+            let mut engine = DrumEngine::new(i);
+            engine.humanize_events(&mut below, InstrumentType::Snare, SongPart::Verse);
+            below_drifts.push((below[0].tick as i64 - base_tick as i64).unsigned_abs());
+
+            let mut at = vec![NoteEvent {
+                tick: base_tick,
+                note: 38,
+                velocity: 50, // at threshold — not ghost
+                duration: 120,
+                channel: 9,
+            }];
+            let mut engine2 = DrumEngine::new(i);
+            engine2.humanize_events(&mut at, InstrumentType::Snare, SongPart::Verse);
+            at_drifts.push((at[0].tick as i64 - base_tick as i64).unsigned_abs());
+        }
+
+        // vel 49 events should have max possible drift of 10, vel 50 max of 4
+        let below_max = *below_drifts.iter().max().expect("non-empty");
+        let at_max = *at_drifts.iter().max().expect("non-empty");
+
+        assert!(
+            below_max <= 10,
+            "ghost note drift {} exceeds ±10 limit",
+            below_max,
+        );
+        assert!(
+            at_max <= 4,
+            "regular note drift {} exceeds ±4 limit",
+            at_max,
+        );
+    }
+
+    #[test]
+    fn non_snare_instruments_ignore_ghost_detection() {
+        // Kick with low velocity should NOT get ghost timing (kick is always ±5)
+        let base_tick: u32 = 1000;
+
+        for i in 0..100u64 {
+            let mut events = vec![NoteEvent {
+                tick: base_tick,
+                note: 36,
+                velocity: 35, // low vel but it's a kick
+                duration: 60,
+                channel: 9,
+            }];
+            let mut engine = DrumEngine::new(i);
+            engine.humanize_events(&mut events, InstrumentType::Kick, SongPart::Chorus);
+
+            let drift = (events[0].tick as i64 - base_tick as i64).unsigned_abs();
+            assert!(
+                drift <= 5,
+                "kick drift {} exceeds ±5 limit even with low velocity",
+                drift,
+            );
+        }
     }
 
     // -- All parts produce events -------------------------------------------
