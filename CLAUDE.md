@@ -43,6 +43,17 @@ The engine must produce MIDI that sounds musical when loaded into a DAW with app
 - Pads: voice-led sustained chords, not just block triads
 - ALL tracks: humanized timing (±5-15 ticks), velocity variation, per-part dynamics scaling
 
+## Production Quality Standards
+
+This is a production system that will be sold to demanding customers. No exceptions.
+
+- **No stubs returning success** — If a command exists in `--help`, it either works correctly or returns an error with non-zero exit code. Never return `ok: true` for unimplemented functionality.
+- **No mocks in production paths** — Real engine calls, real file I/O, real state management. Mocks are only acceptable in unit tests where they replace external dependencies.
+- **No demoware** — Every feature must be full-stack: CLI → engine → output → verified result. Half-implemented features that look good in a demo but don't actually work are not acceptable.
+- **No silent failures** — Every error must be surfaced to the user with a clear message and non-zero exit code. Use `anyhow::Result` throughout.
+- **Every PR reviewed** — Genuine code review with posted comments before merge. The reviewer must read the diff, check against specs, and post an approval or change request with specific feedback.
+- **Integration tests required** — End-to-end tests that verify actual output: MIDI files on disk, valid JSON responses, correct exit codes, deterministic composition.
+
 ## Testing
 
 Write unit tests for:
@@ -51,6 +62,12 @@ Write unit tests for:
 - Pattern generation determinism (same seed = same output)
 - CLI command parsing
 - MIDI file export round-trip
+
+Write integration tests for:
+- CLI commands produce correct JSON output and exit codes
+- `compose` produces a fully-populated song with patterns on all active tracks
+- `export-midi` writes a valid MIDI file to disk that can be read back
+- Unimplemented commands return non-zero exit code (not fake success)
 
 ## File Naming
 
