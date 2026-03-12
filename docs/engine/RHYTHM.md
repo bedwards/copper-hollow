@@ -85,10 +85,20 @@ Swing applies to all tracks uniformly but drums can have independent swing per i
 Every note event passes through humanization before final output.
 
 ### Timing
+
+Each role has its own std_dev and max offset (see DEFAULTS.md for values):
+
+| Role | std_dev (ticks) | max offset |
+|------|-----------------|------------|
+| Drums | 5 | ±10 |
+| Bass | 6 | ±12 |
+| Rhythm | 8 | ±15 |
+| Melody | 10 | ±18 |
+| Pads | 4 | ±8 |
+
 ```
-base_offset = random_gauss(mean=0, std_dev=8) ticks
-instrument_factor: drums ×1.0, bass ×0.7, rhythm ×1.2, melody ×1.5
-final_offset = clamp(base_offset × instrument_factor, -15, +15)
+offset = random_gauss(mean=0, std_dev=<role_std_dev>) ticks
+final_offset = clamp(offset, -max_offset, +max_offset)
 ```
 
 Downbeats (tick % 1920 == 0) get tighter humanization (÷2).
