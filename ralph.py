@@ -130,22 +130,21 @@ def increment_phase_metric(phase):
 # ---------------------------------------------------------------------------
 
 def run_claude(prompt, model=None, max_turns=None, budget=None,
-               allowed_tools=None, extra_flags=None, timeout=600):
+               extra_flags=None, timeout=600):
     """
     Run a single-shot Claude Code CLI instance and return its output.
+    All tools available, permissions skipped for full autonomy.
     Returns (success: bool, output: str, parsed_json: dict|None)
     """
     cmd = [CLAUDE_CMD, "-p", prompt]
 
     cmd.extend(["--model", model or CLAUDE_MODEL])
     cmd.extend(["--effort", "max"])
+    cmd.extend(["--dangerously-skip-permissions"])
     cmd.extend(["--max-turns", str(max_turns or CLAUDE_MAX_TURNS)])
 
     if budget:
         cmd.extend(["--max-budget-usd", str(budget)])
-
-    if allowed_tools:
-        cmd.extend(["--allowedTools", allowed_tools])
 
     if extra_flags:
         cmd.extend(extra_flags)
@@ -346,7 +345,6 @@ def phase_research(dry_run=False):
         prompt,
         model="opus",
         max_turns=15,
-        allowed_tools="Read,Glob,Grep,WebSearch,WebFetch",
         timeout=300,
     )
 
@@ -382,7 +380,6 @@ def phase_plan(dry_run=False):
         prompt,
         model="opus",
         max_turns=30,  # May need many turns to create multiple issues
-        allowed_tools="Read,Glob,Grep,Bash(gh:*)",
         timeout=600,
     )
 
@@ -423,7 +420,6 @@ def phase_orchestrate(dry_run=False):
         prompt,
         model="opus",
         max_turns=10,
-        allowed_tools="Read,Glob,Grep,Bash(gh:*)",
         timeout=180,
     )
 
@@ -489,7 +485,6 @@ def phase_work(dry_run=False):
         model="opus",
         max_turns=CLAUDE_MAX_TURNS,
         budget=CLAUDE_BUDGET,
-        allowed_tools="Read,Glob,Grep,Edit,Write,Bash",
         timeout=900,  # 15 minutes for implementation
     )
 
@@ -551,9 +546,8 @@ def phase_review(dry_run=False):
 
     success, output, parsed = run_claude(
         prompt,
-        model="opus",  # Use opus for reviews — higher quality judgment
+        model="opus",
         max_turns=15,
-        allowed_tools="Read,Glob,Grep,Bash(gh:*),Bash(git:*)",
         timeout=300,
     )
 
@@ -602,7 +596,6 @@ def phase_monitor(dry_run=False):
         prompt,
         model="opus",
         max_turns=10,
-        allowed_tools="Read,Glob,Grep,Bash(cargo:*),Bash(gh:*),Bash(git:*)",
         timeout=300,
     )
 
