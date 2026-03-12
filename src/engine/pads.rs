@@ -82,7 +82,7 @@ impl PadEngine {
         let root_semi = chord.root.to_semitone();
 
         // Find the best octave for the root that keeps all notes in range and near center
-        let mut best_root = range.0;
+        let mut best_root: Option<u8> = None;
         let mut best_dist = u8::MAX;
 
         for octave in 0..=10u8 {
@@ -97,13 +97,35 @@ impl PadEngine {
             let dist = root_midi.abs_diff(center);
             if dist < best_dist {
                 best_dist = dist;
-                best_root = root_midi;
+                best_root = Some(root_midi);
             }
         }
 
+        // Fallback: find closest root in range even if upper chord tones exceed it.
+        // The filter below will trim out-of-range notes.
+        if best_root.is_none() {
+            best_dist = u8::MAX;
+            for octave in 0..=10u8 {
+                let root_midi = octave * 12 + root_semi;
+                if root_midi < range.0 || root_midi > range.1 {
+                    continue;
+                }
+                let dist = root_midi.abs_diff(center);
+                if dist < best_dist {
+                    best_dist = dist;
+                    best_root = Some(root_midi);
+                }
+            }
+        }
+
+        let root = match best_root {
+            Some(r) => r,
+            None => return Vec::new(),
+        };
+
         intervals
             .iter()
-            .map(|&i| best_root + i)
+            .map(|&i| root + i)
             .filter(|&n| n >= range.0 && n <= range.1)
             .collect()
     }
@@ -116,7 +138,7 @@ impl PadEngine {
 
         // Place root in lower register
         let lower_center = center.saturating_sub(6);
-        let mut root_midi = range.0;
+        let mut best_root: Option<u8> = None;
         let mut best_dist = u8::MAX;
 
         for octave in 0..=10u8 {
@@ -127,9 +149,14 @@ impl PadEngine {
             let dist = candidate.abs_diff(lower_center);
             if dist < best_dist {
                 best_dist = dist;
-                root_midi = candidate;
+                best_root = Some(candidate);
             }
         }
+
+        let root_midi = match best_root {
+            Some(r) => r,
+            None => return Vec::new(),
+        };
 
         let mut notes = vec![root_midi];
         for &interval in intervals.iter().skip(1) {
@@ -230,7 +257,7 @@ impl PadEngine {
 
             let mut best_note = prev_note;
             let mut best_dist = u8::MAX;
-            let mut best_ti = 0;
+            let mut best_ti: Option<usize> = None;
 
             for (ti, options) in target_options.iter().enumerate() {
                 if used_targets[ti] {
@@ -241,15 +268,15 @@ impl PadEngine {
                     if dist < best_dist {
                         best_dist = dist;
                         best_note = candidate;
-                        best_ti = ti;
+                        best_ti = Some(ti);
                     }
                 }
             }
 
             result.push(best_note);
             voice_assigned[vi] = true;
-            if best_ti < used_targets.len() {
-                used_targets[best_ti] = true;
+            if let Some(ti) = best_ti {
+                used_targets[ti] = true;
             }
         }
 
@@ -916,5 +943,91 @@ mod tests {
             open_spread,
             close_spread,
         );
+    }
+
+    // -- Out-of-range root fallback (issue #105) --------------------------------
+
+    #[test]
+    fn close_voicing_out_of_range_root_returns_valid_notes() {
+        // Use a very narrow range where the full chord can't fit in a single octave
+        // but the root itself still exists in range
+        let chord = c_major_chord(); // C E G — intervals [0, 4, 7]
+        // Range 60-64: root C=60 fits, but G=67 exceeds range.
+        // The strict loop (root+top <= range.1) would fail, but fallback should find root=60.
+        let voicing = PadEngine::close_voicing(&chord, 62, (60, 64));
+        // Should contain at least the root, not default to range.0 blindly
+        assert!(!voicing.is_empty(), "should produce notes even with narrow range");
+        for &note in &voicing {
+            let pc = PitchClass::from_midi(note);
+            let chord_pcs = chord.notes();
+            assert!(
+                chord_pcs.contains(&pc),
+                "note {} ({:?}) should be a chord tone",
+                note,
+                pc,
+            );
+        }
+    }
+
+    #[test]
+    fn close_voicing_impossible_range_returns_empty() {
+        // Range where no valid root pitch class exists at all (range too small and misaligned)
+        let chord = make_chord(PitchClass::Cs, ChordQuality::Major, ChordDegree::I);
+        // Range 60-60: only MIDI 60 = C, but root is C#. No C# exists in this range.
+        let voicing = PadEngine::close_voicing(&chord, 60, (60, 60));
+        assert!(voicing.is_empty(), "impossible range should return empty voicing");
+    }
+
+    #[test]
+    fn open_voicing_out_of_range_root_returns_valid_notes() {
+        let chord = c_major_chord();
+        // Narrow range but root C exists within it
+        let voicing = PadEngine::open_voicing(&chord, 62, (60, 67));
+        assert!(!voicing.is_empty(), "should produce notes with narrow range");
+        for &note in &voicing {
+            assert!(note >= 60 && note <= 67, "note {} outside range", note);
+        }
+    }
+
+    #[test]
+    fn open_voicing_impossible_range_returns_empty() {
+        let chord = make_chord(PitchClass::Cs, ChordQuality::Major, ChordDegree::I);
+        let voicing = PadEngine::open_voicing(&chord, 60, (60, 60));
+        assert!(voicing.is_empty(), "impossible range should return empty voicing");
+    }
+
+    #[test]
+    fn voice_leading_no_valid_target_does_not_corrupt_state() {
+        // Set up a scenario where all targets are used (more voices than targets)
+        // 4 previous voices but only 3 target pitch classes
+        let prev_voicing = vec![60, 64, 67, 72]; // 4 voices
+        let next_chord = c_major_chord(); // C E G = 3 pitch classes
+
+        let result = PadEngine::voice_lead(
+            &prev_voicing,
+            &next_chord,
+            PadVoicingType::Close,
+            (36, 84),
+        );
+
+        // Should have 4 notes (one per previous voice)
+        assert_eq!(result.len(), 4, "should have one note per previous voice");
+
+        // All notes should be in range
+        for &note in &result {
+            assert!(note >= 36 && note <= 84, "note {} outside range", note);
+        }
+
+        // All notes should be chord tones
+        let chord_pcs = next_chord.notes();
+        for &note in &result {
+            let pc = PitchClass::from_midi(note);
+            assert!(
+                chord_pcs.contains(&pc),
+                "note {} ({:?}) should be a chord tone after voice leading",
+                note,
+                pc,
+            );
+        }
     }
 }
