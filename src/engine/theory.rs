@@ -60,6 +60,14 @@ impl PitchClass {
         let val = (self.to_semitone() as i16 + semitones as i16).rem_euclid(12) as u8;
         PitchClass::ALL[val as usize]
     }
+
+    /// Shortest distance in semitones between two pitch classes (0–6).
+    /// Always returns the shorter of the two possible paths around the circle.
+    #[allow(dead_code)]
+    pub fn semitone_distance(self, other: PitchClass) -> u8 {
+        let diff = self.to_semitone().abs_diff(other.to_semitone());
+        diff.min(12 - diff)
+    }
 }
 
 /// Display uses standard naming: C, C#, D, Eb, E, F, F#, G, Ab, A, Bb, B.
@@ -904,5 +912,59 @@ mod tests {
         let json = serde_json::to_string(&scale).unwrap();
         let parsed: Scale = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, scale);
+    }
+
+    // -- PitchClass::semitone_distance ---------------------------------------
+
+    #[test]
+    fn semitone_distance_same_note_is_zero() {
+        assert_eq!(PitchClass::C.semitone_distance(PitchClass::C), 0);
+        assert_eq!(PitchClass::Fs.semitone_distance(PitchClass::Fs), 0);
+    }
+
+    #[test]
+    fn semitone_distance_adjacent() {
+        assert_eq!(PitchClass::C.semitone_distance(PitchClass::Cs), 1);
+        assert_eq!(PitchClass::Cs.semitone_distance(PitchClass::C), 1);
+    }
+
+    #[test]
+    fn semitone_distance_takes_shorter_path() {
+        // C to B is 1 semitone (going down), not 11 (going up)
+        assert_eq!(PitchClass::C.semitone_distance(PitchClass::B), 1);
+        assert_eq!(PitchClass::B.semitone_distance(PitchClass::C), 1);
+    }
+
+    #[test]
+    fn semitone_distance_tritone_is_six() {
+        // Tritone is the maximum distance (6 semitones = halfway around)
+        assert_eq!(PitchClass::C.semitone_distance(PitchClass::Fs), 6);
+        assert_eq!(PitchClass::Fs.semitone_distance(PitchClass::C), 6);
+    }
+
+    #[test]
+    fn semitone_distance_is_symmetric() {
+        for &a in &PitchClass::ALL {
+            for &b in &PitchClass::ALL {
+                assert_eq!(
+                    a.semitone_distance(b),
+                    b.semitone_distance(a),
+                    "distance({a}, {b}) should equal distance({b}, {a})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn semitone_distance_never_exceeds_six() {
+        for &a in &PitchClass::ALL {
+            for &b in &PitchClass::ALL {
+                assert!(
+                    a.semitone_distance(b) <= 6,
+                    "distance({a}, {b}) = {} exceeds 6",
+                    a.semitone_distance(b)
+                );
+            }
+        }
     }
 }
