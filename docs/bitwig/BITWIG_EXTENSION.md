@@ -2,7 +2,7 @@
 
 ## Overview
 
-A compiled Java extension (.bwextension) that runs inside Bitwig Studio. It connects to the FolkKomposer Rust app via TCP on localhost:9876, relays MIDI events to Bitwig instruments, and sends transport state back to the app.
+A compiled Java extension (.bwextension) that runs inside Bitwig Studio. It connects to the Copper Hollow Rust app via TCP on localhost:9876, relays MIDI events to Bitwig instruments, and sends transport state back to the app.
 
 ## Why Java, Not JavaScript
 
@@ -16,9 +16,9 @@ A compiled Java extension (.bwextension) that runs inside Bitwig Studio. It conn
 ```
 bitwig-extension/
 ├── pom.xml
-└── src/main/java/com/folkkomposer/
-    ├── FolkKomposerExtensionDefinition.java
-    └── FolkKomposerExtension.java
+└── src/main/java/com/copperhollow/
+    ├── CopperHollowExtensionDefinition.java
+    └── CopperHollowExtension.java
 ```
 
 ## Maven pom.xml
@@ -31,13 +31,13 @@ Build target: produce a .jar, rename to .bwextension, output to Bitwig Extension
 
 The Bitwig extension API artifact is available at `~/.m2/repository/com/bitwig/extension-api/` after generating a project from within Bitwig (Help > Documentation > Developer Resources > Controller Scripting Guide > New Project).
 
-## FolkKomposerExtensionDefinition.java
+## CopperHollowExtensionDefinition.java
 
 ```java
 // Defines the extension metadata
 // UUID: generate a unique one
-// Name: "FolkKomposer"
-// Vendor: "FolkKomposer"
+// Name: "Copper Hollow"
+// Vendor: "Copper Hollow"
 // MIDI ports: 0 input, 1 output
 // Auto-detect: none (virtual controller)
 // Required API: 18
@@ -45,15 +45,15 @@ The Bitwig extension API artifact is available at `~/.m2/repository/com/bitwig/e
 
 Key methods to implement:
 - `getId()` → UUID string
-- `getName()` → "FolkKomposer"
+- `getName()` → "Copper Hollow"
 - `getAuthor()` → "Brian Edwards"
 - `getVersion()` → "1.0"
 - `getRequiredAPIVersion()` → 18
 - `getNumMidiInPorts()` → 0
 - `getNumMidiOutPorts()` → 1
-- `createInstance(ControllerHost)` → new FolkKomposerExtension(this, host)
+- `createInstance(ControllerHost)` → new CopperHollowExtension(this, host)
 
-## FolkKomposerExtension.java
+## CopperHollowExtension.java
 
 This is the main extension class. It:
 
@@ -96,7 +96,7 @@ Reconnection:
 
 ### Message Handling
 
-Messages from FolkKomposer app (received by extension):
+Messages from Copper Hollow app (received by extension):
 
 ```json
 {"type": "NoteOn", "channel": 0, "note": 60, "velocity": 100}
@@ -110,7 +110,7 @@ Messages from FolkKomposer app (received by extension):
 {"type": "GetTransport"}
 ```
 
-Messages to FolkKomposer app (sent by extension):
+Messages to Copper Hollow app (sent by extension):
 
 ```json
 {"type": "Transport", "playing": true, "tempo": 120.0, "position": 16.5}
@@ -178,11 +178,11 @@ host.scheduleTask(() -> {
 ## Installation
 
 1. Generate project scaffold from Bitwig: Help > Documentation > Developer Resources > New Project
-2. Replace generated Java files with FolkKomposer classes
+2. Replace generated Java files with Copper Hollow classes
 3. Update pom.xml with correct dependencies and output path
 4. `mvn install`
 5. Copy .bwextension to `~/Documents/Bitwig Studio/Extensions/`
-6. In Bitwig: Settings > Controllers > Add > FolkKomposer
+6. In Bitwig: Settings > Controllers > Add > Copper Hollow
 7. Set MIDI Output to the virtual port or instrument bus you want to target
 
 ## Debugging

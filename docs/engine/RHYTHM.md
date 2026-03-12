@@ -2,7 +2,7 @@
 
 ## Philosophy
 
-Rhythm is feel. A perfectly quantized pattern sounds dead. Every note in FolkKomposer passes through humanization. The engine thinks in grooves, not grids.
+Rhythm is feel. A perfectly quantized pattern sounds dead. Every note in Copper Hollow passes through humanization. The engine thinks in grooves, not grids.
 
 ## Strum Patterns
 

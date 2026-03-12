@@ -127,4 +127,4 @@ Tick    Dir    Vel%    Stagger(ms)
 | Service | Port | Protocol |
 |---------|------|----------|
 | Bitwig Bridge | 9876 | TCP, JSON lines |
-| CLI IPC | /tmp/folkkomposer.sock | Unix domain socket, JSON lines |
+| CLI IPC | /tmp/copper-hollow.sock | Unix domain socket, JSON lines |

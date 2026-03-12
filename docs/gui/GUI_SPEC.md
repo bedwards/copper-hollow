@@ -144,7 +144,7 @@ This widget is read-only — no mouse interaction for editing notes. All editing
 
 Main app struct:
 ```rust
-struct FolkKomposer {
+struct CopperHollow {
     state: SharedState,  // Arc<Mutex<AppState>>
 }
 

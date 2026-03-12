@@ -1,8 +1,8 @@
-# FolkKomposer — Project Kickoff
+# Copper Hollow — Project Kickoff
 
 ## What This Is
 
-FolkKomposer is a Rust application that composes production-ready MIDI arrangements for folk, indie, alt-country, and folktronica music. It has three interfaces:
+Copper Hollow is a Rust application that composes production-ready MIDI arrangements for folk, indie, alt-country, and folktronica music. It has three interfaces:
 
 1. A native GUI (Iced 0.14) for high-level creative control
 2. A CLI (single binary, clap subcommands) for full programmatic MIDI control
@@ -16,7 +16,7 @@ The user never inputs individual notes through the GUI. They press "next suggest
 
 **The GUI must be beautiful.** Iced 0.14, GPU-rendered, dark theme, music-production aesthetic. Think Bitwig/Ableton's UI sensibility — clean, information-dense, no wasted space. Custom canvas widgets for pattern visualization.
 
-**The CLI must be complete.** Every state change possible through the GUI must also be possible through `folkkomposer <subcommand> [args]`. Single invocation, prints JSON to stdout, exits. No daemon. No TCP. Shared state via a lock file or Unix socket to the running GUI process.
+**The CLI must be complete.** Every state change possible through the GUI must also be possible through `copper-hollow <subcommand> [args]`. Single invocation, prints JSON to stdout, exits. No daemon. No TCP. Shared state via a lock file or Unix socket to the running GUI process.
 
 **The Bitwig extension must be real Java.** Not JavaScript. Maven project, compiled to .bwextension. Type-safe. Connects to the Rust app over TCP, relays MIDI and transport.
 
@@ -38,7 +38,7 @@ The user never inputs individual notes through the GUI. They press "next suggest
 ## File Layout
 
 ```
-folkkomposer/
+copper-hollow/
 ├── Cargo.toml
 ├── CLAUDE.md                    # Instructions for Claude Code
 ├── src/
@@ -71,9 +71,9 @@ folkkomposer/
 │   └── state.rs                 # SharedState, Snapshot, undo/redo
 ├── bitwig-extension/
 │   ├── pom.xml                  # Maven build
-│   └── src/main/java/com/folkkomposer/
-│       ├── FolkKomposerExtensionDefinition.java
-│       └── FolkKomposerExtension.java
+│   └── src/main/java/com/copperhollow/
+│       ├── CopperHollowExtensionDefinition.java
+│       └── CopperHollowExtension.java
 └── docs/                        # These spec documents
 ```
 

@@ -2,7 +2,7 @@
 
 ## Transport
 
-TCP over localhost. FolkKomposer Rust app listens on `127.0.0.1:9876`. Bitwig Java extension connects as client.
+TCP over localhost. Copper Hollow Rust app listens on `127.0.0.1:9876`. Bitwig Java extension connects as client.
 
 ## Wire Format
 

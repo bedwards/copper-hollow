@@ -1,0 +1,27 @@
+# Rust
+/target
+**/*.rs.bk
+Cargo.lock
+
+# Java / Bitwig extension
+bitwig-extension/target/
+*.class
+*.jar
+
+# RALPH runtime state (tracked separately)
+.ralph/logs/
+.ralph/research_output.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# MIDI exports (not tracked)
+*.mid
