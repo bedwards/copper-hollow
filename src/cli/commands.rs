@@ -6,9 +6,10 @@ use crate::state::AppState;
 
 use super::{Cli, Commands};
 
-/// Execute a CLI command and print JSON to stdout.
-pub fn execute(command: &Commands, args: &Cli) -> Result<()> {
-    let response = match command {
+/// Build the JSON response for a CLI command. Shared by `execute` (production)
+/// and test helpers to avoid duplicating the match logic.
+fn build_response(command: &Commands, args: &Cli) -> serde_json::Value {
+    match command {
         Commands::ListScales => {
             let scales = vec![
                 ScaleType::Major,
@@ -116,7 +117,12 @@ pub fn execute(command: &Commands, args: &Cli) -> Result<()> {
             }
         }
         _ => serde_json::json!({"ok": true, "data": "not yet implemented"}),
-    };
+    }
+}
+
+/// Execute a CLI command and print JSON to stdout.
+pub fn execute(command: &Commands, args: &Cli) -> Result<()> {
+    let response = build_response(command, args);
 
     if args.json_pretty {
         println!("{}", serde_json::to_string_pretty(&response)?);
@@ -132,117 +138,7 @@ mod tests {
 
     /// Helper: execute a command and capture the JSON response.
     fn exec_json(command: &Commands, args: &Cli) -> serde_json::Value {
-        // We can't easily capture stdout, so test the logic directly
-        let response = match command {
-            Commands::ListScales => {
-                let scales = vec![
-                    ScaleType::Major,
-                    ScaleType::NaturalMinor,
-                    ScaleType::HarmonicMinor,
-                    ScaleType::Dorian,
-                    ScaleType::Mixolydian,
-                    ScaleType::MinorPentatonic,
-                    ScaleType::Blues,
-                ];
-                serde_json::json!({"ok": true, "data": scales})
-            }
-            Commands::ListInstruments => {
-                let instruments = vec![
-                    InstrumentType::AcousticGuitar,
-                    InstrumentType::ElectricGuitar,
-                    InstrumentType::ElectricBass,
-                    InstrumentType::AcousticBass,
-                    InstrumentType::PedalSteel,
-                    InstrumentType::Mandolin,
-                    InstrumentType::Banjo,
-                    InstrumentType::HammondOrgan,
-                    InstrumentType::Piano,
-                    InstrumentType::Pad,
-                    InstrumentType::Kick,
-                    InstrumentType::Snare,
-                    InstrumentType::HiHat,
-                    InstrumentType::OpenHiHat,
-                    InstrumentType::Clap,
-                    InstrumentType::Tambourine,
-                    InstrumentType::Cowbell,
-                    InstrumentType::Shaker,
-                    InstrumentType::RideCymbal,
-                    InstrumentType::CrashCymbal,
-                    InstrumentType::Toms,
-                    InstrumentType::Rimshot,
-                ];
-                serde_json::json!({"ok": true, "data": instruments})
-            }
-            Commands::ListParts => {
-                let parts = vec![
-                    SongPart::Intro,
-                    SongPart::Verse,
-                    SongPart::PreChorus,
-                    SongPart::Chorus,
-                    SongPart::Bridge,
-                    SongPart::Outro,
-                ];
-                serde_json::json!({"ok": true, "data": parts})
-            }
-            Commands::ListStrumPatterns => {
-                let patterns = vec![StrumPattern::default_folk()];
-                serde_json::json!({"ok": true, "data": patterns})
-            }
-            Commands::GetState => {
-                let seed = args.seed.unwrap_or(42);
-                let state = AppState::new(seed);
-                serde_json::json!({"ok": true, "data": state})
-            }
-            Commands::GetSong => {
-                let seed = args.seed.unwrap_or(42);
-                let state = AppState::new(seed);
-                serde_json::json!({"ok": true, "data": state.song})
-            }
-            Commands::GetTrack { index } => {
-                let seed = args.seed.unwrap_or(42);
-                let state = AppState::new(seed);
-                if *index >= state.song.tracks.len() {
-                    serde_json::json!({"ok": false, "error": format!("Track index {} out of range (0-{})", index, state.song.tracks.len() - 1)})
-                } else {
-                    serde_json::json!({"ok": true, "data": state.song.tracks[*index]})
-                }
-            }
-            Commands::GetPattern { track, part } => {
-                let seed = args.seed.unwrap_or(42);
-                let state = AppState::new(seed);
-                match part.parse::<SongPart>() {
-                    Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
-                    Ok(song_part) => {
-                        if *track >= state.song.tracks.len() {
-                            serde_json::json!({"ok": false, "error": format!("Track index {} out of range (0-{})", track, state.song.tracks.len() - 1)})
-                        } else {
-                            match state.song.tracks[*track].patterns.get(&song_part) {
-                                Some(pattern) => serde_json::json!({"ok": true, "data": pattern}),
-                                None => {
-                                    let empty = Pattern::empty(song_part.typical_bars());
-                                    serde_json::json!({"ok": true, "data": empty})
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            Commands::ListProgressions { part } => {
-                let seed = args.seed.unwrap_or(42);
-                let state = AppState::new(seed);
-                match part.parse::<SongPart>() {
-                    Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
-                    Ok(song_part) => {
-                        match state.song.progressions.get(&song_part) {
-                            Some(prog) => serde_json::json!({"ok": true, "data": prog}),
-                            None => serde_json::json!({"ok": true, "data": []}),
-                        }
-                    }
-                }
-            }
-            _ => serde_json::json!({"ok": true, "data": "not yet implemented"}),
-        };
-        response
+        build_response(command, args)
     }
 
     fn default_args() -> Cli {

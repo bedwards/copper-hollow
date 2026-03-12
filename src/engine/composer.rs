@@ -14,7 +14,7 @@ use super::drums::{DrumConfig, DrumEngine};
 use super::melody::{MelodyConfig, MelodyEngine};
 use super::pads::{PadConfig, PadEngine};
 use super::rhythm::{GrooveTemplate, RhythmEngine, RhythmGenConfig};
-use super::song::{NoteEvent, Pattern, Song, StrumPattern, Track, TrackRole, Voicing};
+use super::song::{Pattern, Song, StrumPattern, Track, TrackRole, Voicing};
 use super::theory::{Chord, Scale};
 
 // ---------------------------------------------------------------------------
@@ -407,24 +407,8 @@ impl Composer {
     /// Apply velocity boosts (+5) to events in the first bar of each section.
     fn apply_velocity_boosts(&self, song: &mut Song, plan: &ArrangementPlan) {
         for track in &mut song.tracks {
-            let mut all_events: Vec<NoteEvent> = track
-                .patterns
-                .values()
-                .flat_map(|p| p.events.iter().cloned())
-                .collect();
-
-            ArrangementEngine::apply_velocity_boosts(&mut all_events, &plan.sections);
-
-            // Write back: redistribute events into patterns by matching tick ranges.
             for pattern in track.patterns.values_mut() {
-                for event in &mut pattern.events {
-                    if let Some(boosted) = all_events
-                        .iter()
-                        .find(|e| e.tick == event.tick && e.note == event.note && e.channel == event.channel)
-                    {
-                        event.velocity = boosted.velocity;
-                    }
-                }
+                ArrangementEngine::apply_velocity_boosts(&mut pattern.events, &plan.sections);
             }
         }
     }
@@ -465,7 +449,7 @@ impl Composer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::song::SongPart;
+    use crate::engine::song::{NoteEvent, SongPart};
     use crate::engine::theory::{ChordDegree, ChordQuality, PitchClass};
     use crate::engine::TICKS_PER_BAR;
 
