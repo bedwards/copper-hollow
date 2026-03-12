@@ -60,7 +60,22 @@ Each has `midi_range() -> (u8, u8)` for comfortable playing range.
 
 **Percussion:** Kick, Snare, HiHat, OpenHiHat, Clap, Tambourine, Cowbell, Shaker, RideCymbal, CrashCymbal, Toms, Rimshot
 
-All percussion sends fixed MIDI note 36 (C1). One instrument per track.
+Each percussion instrument maps to its General MIDI drum note. One instrument per track.
+
+| Instrument | GM Note | GM Name |
+|---|---|---|
+| Kick | 36 | Acoustic Bass Drum |
+| Snare | 38 | Acoustic Snare |
+| HiHat | 42 | Closed Hi-Hat |
+| OpenHiHat | 46 | Open Hi-Hat |
+| Clap | 39 | Hand Clap |
+| Tambourine | 54 | Tambourine |
+| Cowbell | 56 | Cowbell |
+| Shaker | 70 | Maracas |
+| RideCymbal | 51 | Ride Cymbal 1 |
+| CrashCymbal | 49 | Crash Cymbal 1 |
+| Toms | 45 | Low Tom |
+| Rimshot | 37 | Side Stick |
 
 ### TrackRole
 Enum: Rhythm, LeadMelody, CounterMelody, Bass, Drum, PadSustain
@@ -173,5 +188,5 @@ All types derive `Serialize, Deserialize`. JSON is the interchange format for CL
 - Ticks per beat: 480
 - Ticks per bar (4/4): 1920
 - Middle C (C3 in Bitwig): MIDI 60
-- Drum note for single-instrument tracks: MIDI 36 (C1)
+- Drum notes: per-instrument GM mapping (see InstrumentType table above)
 - Pitch bend center: 8192

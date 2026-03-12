@@ -13,7 +13,5 @@ pub const TICKS_PER_BEAT: u32 = 480;
 pub const TICKS_PER_BAR: u32 = 1920;
 /// MIDI note number for Middle C (C3 in Bitwig).
 pub const MIDDLE_C: u8 = 60;
-/// MIDI note for single-instrument percussion tracks.
-pub const DRUM_NOTE: u8 = 36;
 /// Pitch bend center value.
 pub const PITCH_BEND_CENTER: u16 = 8192;
