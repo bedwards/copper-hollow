@@ -534,7 +534,9 @@ impl RhythmEngine {
 
             let timing_offset = self.gauss(0.0, std_dev).round() as i32;
             let timing_offset = timing_offset.clamp(-max_off, max_off);
-            event.tick = (event.tick as i32 + timing_offset).max(0) as u32;
+            // Use i64 to avoid overflow when tick > i32::MAX (~2.1B).
+            let new_tick = event.tick as i64 + timing_offset as i64;
+            event.tick = new_tick.clamp(0, u32::MAX as i64) as u32;
 
             // Velocity: variation + accent curve, then dynamics scaling
             let vel_variation = self.gauss(0.0, params.velocity_std_dev).round() as i32;
@@ -911,6 +913,53 @@ mod tests {
 
         let pads = HumanizeParams::for_role(TrackRole::PadSustain);
         assert!((pads.legato_factor - 0.98).abs() < f64::EPSILON);
+    }
+
+    // -- Overflow safety ---------------------------------------------------
+
+    #[test]
+    fn humanize_large_tick_no_overflow() {
+        let mut engine = RhythmEngine::new(42);
+        // Tick near u32::MAX would overflow if cast to i32
+        let large_tick = u32::MAX - 100;
+        let mut events = vec![NoteEvent {
+            tick: large_tick,
+            note: 60,
+            velocity: 100,
+            duration: 240,
+            channel: 0,
+        }];
+
+        // Should not panic or wrap to a garbage value
+        engine.humanize(&mut events, TrackRole::Rhythm, SongPart::Chorus);
+
+        // Tick should remain close to the original (within timing_max_offset=15)
+        let diff = events[0].tick.abs_diff(large_tick);
+        assert!(
+            diff <= 15,
+            "tick drifted {} from original, expected <= 15",
+            diff,
+        );
+    }
+
+    #[test]
+    fn humanize_tick_zero_no_underflow() {
+        let mut engine = RhythmEngine::new(42);
+        let mut events = vec![NoteEvent {
+            tick: 0,
+            note: 60,
+            velocity: 100,
+            duration: 240,
+            channel: 0,
+        }];
+
+        // A negative timing offset should clamp to 0, not wrap to u32::MAX
+        engine.humanize(&mut events, TrackRole::Rhythm, SongPart::Chorus);
+        assert!(
+            events[0].tick <= 15,
+            "tick {} too large for near-zero input",
+            events[0].tick,
+        );
     }
 
     // -- Groove template ---------------------------------------------------
