@@ -17,28 +17,17 @@ You are a code review worker for the Copper Hollow project. This is a production
 - `gh pr view {pr_number} --json title,body,files,additions,deletions,headRefName`
 - `gh pr diff {pr_number}`
 
-### 3. Wait for and read Gemini Code Assist review
-Gemini Code Assist automatically reviews every PR. It takes 1-4 minutes to post its review after PR creation. **You MUST wait for it before proceeding.**
+### 3. Read automated review feedback
+Three bots automatically review PRs: **Gemini Code Assist**, **Claude** (via GitHub Actions), and **ChatGPT Codex**. The orchestrator has already waited for them and will tell you their status in the "Automated Review Status" section appended to this prompt. **Do NOT poll or wait for bots yourself** — that is handled before you run.
 
-Poll for the Gemini review (up to 5 minutes, checking every 30 seconds):
-```bash
-for i in $(seq 1 10); do
-  review_count=$(gh api repos/bedwards/copper-hollow/pulls/{pr_number}/reviews --jq '[.[] | select(.user.login == "gemini-code-assist[bot]")] | length')
-  if [ "$review_count" -gt "0" ]; then
-    echo "Gemini review found after $((i * 30)) seconds"
-    break
-  fi
-  echo "Waiting for Gemini review... attempt $i/10"
-  sleep 30
-done
-```
-
-Once the review is posted:
-- `gh api repos/bedwards/copper-hollow/pulls/{pr_number}/reviews --jq '.[] | select(.user.login == "gemini-code-assist[bot]") | .body'` — read the summary review
-- `gh api repos/bedwards/copper-hollow/pulls/{pr_number}/comments` — read ALL inline comments
+For each bot marked as "HAS posted its review":
+- `gh api repos/bedwards/copper-hollow/pulls/{pr_number}/reviews --jq '.[] | select(.user.login == "gemini-code-assist[bot]" or .user.login == "chatgpt-codex-connector[bot]") | .body'` — read summary reviews
+- `gh api repos/bedwards/copper-hollow/pulls/{pr_number}/comments` — read ALL inline comments from all bots
+- For Claude: `gh pr checks {pr_number} --repo bedwards/copper-hollow` — check the action status and any annotations
 - Categorize findings by severity (high/medium/low)
-- **High-priority findings BLOCK merge** — they must be addressed first
-- If Gemini doesn't post within 5 minutes, proceed with your own review but note it in the output
+- **High-priority findings from any bot BLOCK merge** — they must be addressed first
+
+For bots marked as "Quota exhausted" or "timed out" — skip them, note in your output.
 
 ### 4. Review the code yourself
 Check against CLAUDE.md rules:

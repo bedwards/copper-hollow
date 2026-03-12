@@ -48,11 +48,42 @@ MAX_CONSECUTIVE_ERRORS = 5
 RATE_LIMIT_BACKOFF_SECONDS = 300  # 5 minutes
 ERROR_BACKOFF_SECONDS = 30
 
-# Gemini Code Assist review settings
-GEMINI_WAIT_SECONDS = 180  # Wait 3 min (average is 1-4 min) before review phase
-GEMINI_POLL_INTERVAL = 30  # Poll every 30s after initial wait
-GEMINI_POLL_MAX_ATTEMPTS = 6  # Up to 3 more minutes of polling
+# Automated code review settings
+REVIEW_INITIAL_WAIT = 120  # Wait 2 min for bots to start posting
+REVIEW_POLL_INTERVAL = 20  # Poll every 20s after initial wait
+REVIEW_POLL_MAX_ATTEMPTS = 12  # Up to 4 more minutes of polling (6 min total max)
 GITHUB_REPO = "bedwards/copper-hollow"
+
+# Bot reviewer definitions
+# Each bot has: login, type ("review" posts gh reviews, "action" runs as GitHub Action),
+# and quota_phrases (strings that indicate quota exhaustion, counts as "done")
+BOT_REVIEWERS = [
+    {
+        "name": "Gemini Code Assist",
+        "login": "gemini-code-assist[bot]",
+        "type": "review",
+        "quota_phrases": [
+            "reached your daily quota limit",
+            "wait up to 24 hours",
+        ],
+    },
+    {
+        "name": "Claude",
+        "login": "github-actions[bot]",
+        "type": "action",
+        "check_name": "claude",
+        "quota_phrases": [],
+    },
+    {
+        "name": "ChatGPT Codex",
+        "login": "chatgpt-codex-connector[bot]",
+        "type": "review",
+        "quota_phrases": [
+            "reached your Codex usage limits",
+            "usage dashboard",
+        ],
+    },
+]
 
 # Tagging milestones (PR merge count -> tag)
 MILESTONE_TAGS = {
@@ -307,40 +338,119 @@ def git_run(*args, check=True):
     return result.stdout.strip(), result.returncode
 
 
-def wait_for_gemini_review(pr_number):
-    """Wait for Gemini Code Assist to post its review on a PR.
-    Returns True if Gemini review found, False if timed out."""
-    log_phase("review", f"Waiting {GEMINI_WAIT_SECONDS}s for Gemini Code Assist to review PR #{pr_number}...")
-    time.sleep(GEMINI_WAIT_SECONDS)
+def check_bot_review_status(pr_number, bot):
+    """Check if a bot has posted on a PR.
+    Returns: "reviewed", "quota_exhausted", or "pending"."""
+    name = bot["name"]
 
-    for attempt in range(1, GEMINI_POLL_MAX_ATTEMPTS + 1):
+    if bot["type"] == "action":
+        # Claude runs as GitHub Action — check PR checks status
         try:
             result = subprocess.run(
-                ["gh", "api", f"repos/{GITHUB_REPO}/pulls/{pr_number}/reviews",
-                 "--jq", '[.[] | select(.user.login == "gemini-code-assist[bot]")] | length'],
+                ["gh", "pr", "checks", str(pr_number), "--repo", GITHUB_REPO,
+                 "--json", "name,state,completedAt"],
                 cwd=PROJECT_DIR, capture_output=True, text=True, timeout=30,
             )
-            count = int(result.stdout.strip() or "0")
-            if count > 0:
-                log_phase("review", f"Gemini review found after {GEMINI_WAIT_SECONDS + attempt * GEMINI_POLL_INTERVAL}s")
-                return True
-        except (subprocess.TimeoutExpired, ValueError):
+            if result.returncode == 0:
+                checks = json.loads(result.stdout)
+                for check in checks:
+                    if bot.get("check_name", "").lower() in check.get("name", "").lower():
+                        state = check.get("state", "").upper()
+                        if state in ("SUCCESS", "FAILURE", "COMPLETED", "NEUTRAL"):
+                            return "reviewed"
+                        elif state in ("PENDING", "IN_PROGRESS", "QUEUED"):
+                            return "pending"
+        except (subprocess.TimeoutExpired, json.JSONDecodeError):
             pass
+        return "pending"
 
-        log_phase("review", f"No Gemini review yet, polling... ({attempt}/{GEMINI_POLL_MAX_ATTEMPTS})")
-        time.sleep(GEMINI_POLL_INTERVAL)
+    # Review-type bots (Gemini, ChatGPT) — check PR reviews and comments
+    try:
+        # Check reviews
+        result = subprocess.run(
+            ["gh", "api", f"repos/{GITHUB_REPO}/pulls/{pr_number}/reviews",
+             "--jq", f'[.[] | select(.user.login == "{bot["login"]}")] | .[0].body // ""'],
+            cwd=PROJECT_DIR, capture_output=True, text=True, timeout=30,
+        )
+        review_body = result.stdout.strip()
 
-    log_phase("review", "Gemini review not found within timeout — proceeding without it (may be quota-limited)")
-    return False
+        if not review_body:
+            # Also check issue comments (some bots post there)
+            result = subprocess.run(
+                ["gh", "api", f"repos/{GITHUB_REPO}/issues/{pr_number}/comments",
+                 "--jq", f'[.[] | select(.user.login == "{bot["login"]}")] | .[0].body // ""'],
+                cwd=PROJECT_DIR, capture_output=True, text=True, timeout=30,
+            )
+            review_body = result.stdout.strip()
+
+        if not review_body:
+            return "pending"
+
+        # Check if the review is a quota exhaustion message
+        body_lower = review_body.lower()
+        for phrase in bot.get("quota_phrases", []):
+            if phrase.lower() in body_lower:
+                return "quota_exhausted"
+
+        return "reviewed"
+
+    except (subprocess.TimeoutExpired, ValueError):
+        return "pending"
+
+
+def wait_for_bot_reviews(pr_number):
+    """Wait for all bot reviewers to post on a PR.
+    Returns dict of {bot_name: status} where status is reviewed/quota_exhausted/timeout."""
+    bot_names = [b["name"] for b in BOT_REVIEWERS]
+    log_phase("review", f"Waiting for bot reviews on PR #{pr_number}: {', '.join(bot_names)}")
+    log_phase("review", f"Initial wait: {REVIEW_INITIAL_WAIT}s, then polling every {REVIEW_POLL_INTERVAL}s")
+
+    time.sleep(REVIEW_INITIAL_WAIT)
+
+    results = {b["name"]: "pending" for b in BOT_REVIEWERS}
+
+    for attempt in range(1, REVIEW_POLL_MAX_ATTEMPTS + 1):
+        all_done = True
+
+        for bot in BOT_REVIEWERS:
+            if results[bot["name"]] not in ("pending",):
+                continue  # Already resolved
+
+            status = check_bot_review_status(pr_number, bot)
+            if status != "pending":
+                results[bot["name"]] = status
+                log_phase("review", f"  {bot['name']}: {status}")
+            else:
+                all_done = False
+
+        if all_done:
+            log_phase("review", f"All bot reviews resolved after {REVIEW_INITIAL_WAIT + attempt * REVIEW_POLL_INTERVAL}s")
+            break
+
+        pending = [name for name, s in results.items() if s == "pending"]
+        log_phase("review", f"Poll {attempt}/{REVIEW_POLL_MAX_ATTEMPTS} — waiting on: {', '.join(pending)}")
+        time.sleep(REVIEW_POLL_INTERVAL)
+
+    # Mark any still-pending as timeout
+    for name in results:
+        if results[name] == "pending":
+            results[name] = "timeout"
+            log_phase("review", f"  {name}: timed out")
+
+    return results
 
 
 def verify_review_posted(pr_number):
     """Verify that a non-bot review was actually posted on the PR.
     Returns True if a human/RALPH review exists, False otherwise."""
+    bot_logins = [b["login"] for b in BOT_REVIEWERS]
+    # Build jq filter to exclude all known bots
+    jq_conditions = " and ".join(f'.user.login != "{login}"' for login in bot_logins)
+    jq_filter = f'[.[] | select({jq_conditions})] | length'
     try:
         result = subprocess.run(
             ["gh", "api", f"repos/{GITHUB_REPO}/pulls/{pr_number}/reviews",
-             "--jq", '[.[] | select(.user.login != "gemini-code-assist[bot]" and .user.login != "chatgpt-codex-connector[bot]")] | length'],
+             "--jq", jq_filter],
             cwd=PROJECT_DIR, capture_output=True, text=True, timeout=30,
         )
         count = int(result.stdout.strip() or "0")
@@ -629,17 +739,28 @@ def phase_review(dry_run=False):
         log_phase("review", f"[DRY RUN] Would review PR #{pr_number}")
         return True
 
-    # Step 1: Wait for Gemini Code Assist to post its review
-    gemini_found = wait_for_gemini_review(pr_number)
+    # Step 1: Wait for all bot reviewers to post
+    bot_results = wait_for_bot_reviews(pr_number)
 
     # Step 2: Run the reviewer worker with enough turns and time
     prompt = build_review_prompt(str(pr_number), branch or "unknown")
 
-    # Tell the reviewer whether Gemini posted
-    if gemini_found:
-        prompt += "\n\n## Gemini Status\nGemini Code Assist HAS posted its review. Read it before proceeding.\n"
-    else:
-        prompt += "\n\n## Gemini Status\nGemini Code Assist did NOT post a review within the timeout. Proceed with your own review but note this in the output.\n"
+    # Tell the reviewer what bot reviews are available
+    status_lines = []
+    for bot_name, status in bot_results.items():
+        if status == "reviewed":
+            status_lines.append(f"- **{bot_name}**: HAS posted its review. Read it and address any findings.")
+        elif status == "quota_exhausted":
+            status_lines.append(f"- **{bot_name}**: Quota exhausted (daily limit reached). Skip — not available today.")
+        else:
+            status_lines.append(f"- **{bot_name}**: Did not post within timeout. Proceed without it.")
+
+    prompt += f"\n\n## Automated Review Status\n" + "\n".join(status_lines) + "\n"
+
+    # Count how many bots actually reviewed (not quota-limited or timed out)
+    bots_with_reviews = [name for name, s in bot_results.items() if s == "reviewed"]
+    if bots_with_reviews:
+        prompt += f"\nRead and address findings from: {', '.join(bots_with_reviews)}\n"
 
     success, output, parsed = run_claude(
         prompt,
