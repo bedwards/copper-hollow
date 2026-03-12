@@ -343,11 +343,18 @@ impl Composer {
     }
 
     /// Find the seed for the lead melody track in this section, so counter-melody
-    /// can be rhythmically independent.
+    /// can be rhythmically independent. Only considers tracks that are active in
+    /// the current section to avoid deriving seeds from inactive tracks.
     fn find_lead_seed(&self, section: &SectionInstance, tracks: &[Track]) -> u64 {
         let lead_track = tracks
             .iter()
-            .find(|t| t.role == TrackRole::LeadMelody);
+            .find(|t| {
+                t.role == TrackRole::LeadMelody
+                    && t.active_parts
+                        .get(&section.part)
+                        .copied()
+                        .unwrap_or(false)
+            });
         match lead_track {
             Some(t) => self.track_section_seed(t.id, section),
             None => self.seed.wrapping_add(999),
@@ -859,6 +866,128 @@ mod tests {
         let json = serde_json::to_string(&config).expect("serialize");
         let parsed: ComposerConfig = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(parsed.seed, config.seed);
+    }
+
+    // -- find_lead_seed active-parts filtering ------------------------------
+
+    #[test]
+    fn find_lead_seed_skips_inactive_lead_melody_tracks() {
+        let composer = Composer::new(42);
+        let section = SectionInstance {
+            part: SongPart::Verse,
+            occurrence: 0,
+            bars: 8,
+            start_bar: 4,
+            start_tick: 4 * TICKS_PER_BAR,
+            end_tick: 12 * TICKS_PER_BAR,
+            chords: vec![],
+            dynamics: 0.7,
+            seed_offset: 42,
+        };
+
+        // Track 8 (PedalSteel, LeadMelody) — inactive in Verse
+        // Track 13 (Lead Melody, LeadMelody) — active in Verse
+        let song = default_song();
+        let pedal_steel = &song.tracks[8];
+        let lead_melody = &song.tracks[13];
+        assert_eq!(pedal_steel.role, TrackRole::LeadMelody);
+        assert_eq!(lead_melody.role, TrackRole::LeadMelody);
+        assert_eq!(
+            pedal_steel.active_parts.get(&SongPart::Verse).copied(),
+            Some(false),
+            "PedalSteel should be inactive in Verse"
+        );
+        assert_eq!(
+            lead_melody.active_parts.get(&SongPart::Verse).copied(),
+            Some(true),
+            "Lead Melody should be active in Verse"
+        );
+
+        let seed = composer.find_lead_seed(&section, &song.tracks);
+        let expected = composer.track_section_seed(13, &section);
+        assert_eq!(
+            seed, expected,
+            "find_lead_seed should use track 13 (active), not track 8 (inactive)"
+        );
+    }
+
+    #[test]
+    fn find_lead_seed_falls_back_when_no_lead_active() {
+        let composer = Composer::new(42);
+        let section = SectionInstance {
+            part: SongPart::Intro,
+            occurrence: 0,
+            bars: 4,
+            start_bar: 0,
+            start_tick: 0,
+            end_tick: 4 * TICKS_PER_BAR,
+            chords: vec![],
+            dynamics: 0.5,
+            seed_offset: 0,
+        };
+
+        // In Intro, both PedalSteel (track 8) and Lead Melody (track 13)
+        // are inactive, so find_lead_seed should return the fallback.
+        let song = default_song();
+        assert_eq!(
+            song.tracks[8].active_parts.get(&SongPart::Intro).copied(),
+            Some(false)
+        );
+        assert_eq!(
+            song.tracks[13].active_parts.get(&SongPart::Intro).copied(),
+            Some(false)
+        );
+
+        let seed = composer.find_lead_seed(&section, &song.tracks);
+        let fallback = composer.seed.wrapping_add(999);
+        assert_eq!(
+            seed, fallback,
+            "find_lead_seed should return fallback when no LeadMelody track is active"
+        );
+    }
+
+    #[test]
+    fn find_lead_seed_varies_by_section_activity() {
+        let composer = Composer::new(42);
+
+        // Chorus: PedalSteel (track 8) is active, Lead Melody (track 13) is active
+        let chorus_section = SectionInstance {
+            part: SongPart::Chorus,
+            occurrence: 0,
+            bars: 8,
+            start_bar: 12,
+            start_tick: 12 * TICKS_PER_BAR,
+            end_tick: 20 * TICKS_PER_BAR,
+            chords: vec![],
+            dynamics: 0.8,
+            seed_offset: 100,
+        };
+
+        // Verse: PedalSteel (track 8) is inactive, Lead Melody (track 13) is active
+        let verse_section = SectionInstance {
+            part: SongPart::Verse,
+            occurrence: 0,
+            bars: 8,
+            start_bar: 4,
+            start_tick: 4 * TICKS_PER_BAR,
+            end_tick: 12 * TICKS_PER_BAR,
+            chords: vec![],
+            dynamics: 0.7,
+            seed_offset: 42,
+        };
+
+        let song = default_song();
+
+        let chorus_seed = composer.find_lead_seed(&chorus_section, &song.tracks);
+        let verse_seed = composer.find_lead_seed(&verse_section, &song.tracks);
+
+        // In Chorus, PedalSteel (track 8) comes first and is active — seed from track 8
+        // In Verse, PedalSteel is inactive so seed comes from track 13
+        // These should differ because the active lead track differs.
+        let chorus_expected = composer.track_section_seed(8, &chorus_section);
+        let verse_expected = composer.track_section_seed(13, &verse_section);
+        assert_eq!(chorus_seed, chorus_expected);
+        assert_eq!(verse_seed, verse_expected);
     }
 
     // -- Full composition serde roundtrip -----------------------------------
