@@ -1,0 +1,38 @@
+name: PR Gatekeeper
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+jobs:
+  check-author:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if author is allowed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const allowedAuthors = ['bedwards'];
+            const author = context.payload.pull_request.user.login;
+            const prNumber = context.payload.pull_request.number;
+
+            if (allowedAuthors.includes(author)) {
+              console.log(`PR #${prNumber} by ${author} — allowed`);
+              return;
+            }
+
+            console.log(`PR #${prNumber} by ${author} — not on allowlist, closing`);
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: `Thanks for your interest, but this project is not accepting external contributions at this time. Closing automatically.`
+            });
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              state: 'closed'
+            });
