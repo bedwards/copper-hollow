@@ -103,9 +103,32 @@ impl InstrumentType {
         )
     }
 
+    /// General MIDI drum note for percussion instruments.
+    /// Returns `None` for melodic instruments.
+    pub fn gm_drum_note(self) -> Option<u8> {
+        match self {
+            InstrumentType::Kick => Some(36),        // Acoustic Bass Drum
+            InstrumentType::Snare => Some(38),       // Acoustic Snare
+            InstrumentType::HiHat => Some(42),       // Closed Hi-Hat
+            InstrumentType::OpenHiHat => Some(46),   // Open Hi-Hat
+            InstrumentType::Clap => Some(39),        // Hand Clap
+            InstrumentType::Tambourine => Some(54),  // Tambourine
+            InstrumentType::Cowbell => Some(56),      // Cowbell
+            InstrumentType::Shaker => Some(70),      // Maracas
+            InstrumentType::RideCymbal => Some(51),  // Ride Cymbal 1
+            InstrumentType::CrashCymbal => Some(49), // Crash Cymbal 1
+            InstrumentType::Toms => Some(45),        // Low Tom
+            InstrumentType::Rimshot => Some(37),     // Side Stick
+            _ => None,
+        }
+    }
+
     /// Comfortable MIDI note range (low, high) for melodic instruments.
-    /// Returns `(36, 36)` for percussion (fixed MIDI note C1).
+    /// For percussion, returns `(note, note)` with the GM drum note.
     pub fn midi_range(self) -> (u8, u8) {
+        if let Some(note) = self.gm_drum_note() {
+            return (note, note);
+        }
         match self {
             InstrumentType::AcousticGuitar => (40, 79),
             InstrumentType::ElectricGuitar => (40, 84),
@@ -117,7 +140,7 @@ impl InstrumentType {
             InstrumentType::HammondOrgan => (36, 84),
             InstrumentType::Piano => (28, 96),
             InstrumentType::Pad => (36, 84),
-            _ => (36, 36), // percussion: fixed MIDI note C1
+            _ => unreachable!("all percussion handled by gm_drum_note"),
         }
     }
 }
@@ -498,7 +521,45 @@ mod tests {
     fn instrument_type_midi_range() {
         assert_eq!(InstrumentType::AcousticGuitar.midi_range(), (40, 79));
         assert_eq!(InstrumentType::ElectricBass.midi_range(), (28, 55));
+        // Percussion instruments return their specific GM drum note
         assert_eq!(InstrumentType::Kick.midi_range(), (36, 36));
+        assert_eq!(InstrumentType::Snare.midi_range(), (38, 38));
+        assert_eq!(InstrumentType::HiHat.midi_range(), (42, 42));
+    }
+
+    #[test]
+    fn percussion_gm_drum_note_mapping() {
+        // Each percussion instrument maps to its correct GM drum note
+        assert_eq!(InstrumentType::Kick.gm_drum_note(), Some(36));
+        assert_eq!(InstrumentType::Snare.gm_drum_note(), Some(38));
+        assert_eq!(InstrumentType::HiHat.gm_drum_note(), Some(42));
+        assert_eq!(InstrumentType::OpenHiHat.gm_drum_note(), Some(46));
+        assert_eq!(InstrumentType::Clap.gm_drum_note(), Some(39));
+        assert_eq!(InstrumentType::Tambourine.gm_drum_note(), Some(54));
+        assert_eq!(InstrumentType::Cowbell.gm_drum_note(), Some(56));
+        assert_eq!(InstrumentType::Shaker.gm_drum_note(), Some(70));
+        assert_eq!(InstrumentType::RideCymbal.gm_drum_note(), Some(51));
+        assert_eq!(InstrumentType::CrashCymbal.gm_drum_note(), Some(49));
+        assert_eq!(InstrumentType::Toms.gm_drum_note(), Some(45));
+        assert_eq!(InstrumentType::Rimshot.gm_drum_note(), Some(37));
+        // Melodic instruments return None
+        assert_eq!(InstrumentType::AcousticGuitar.gm_drum_note(), None);
+        assert_eq!(InstrumentType::Piano.gm_drum_note(), None);
+    }
+
+    #[test]
+    fn percussion_instruments_have_unique_notes() {
+        let percussion = [
+            InstrumentType::Kick, InstrumentType::Snare, InstrumentType::HiHat,
+            InstrumentType::OpenHiHat, InstrumentType::Clap, InstrumentType::Tambourine,
+            InstrumentType::Cowbell, InstrumentType::Shaker, InstrumentType::RideCymbal,
+            InstrumentType::CrashCymbal, InstrumentType::Toms, InstrumentType::Rimshot,
+        ];
+        let mut notes: Vec<u8> = percussion.iter().map(|i| i.gm_drum_note().unwrap()).collect();
+        let len_before = notes.len();
+        notes.sort();
+        notes.dedup();
+        assert_eq!(notes.len(), len_before, "all percussion instruments must have unique GM notes");
     }
 
     #[test]
