@@ -18,7 +18,7 @@ You are a code review worker for the Copper Hollow project. This is a production
 - `gh pr diff {pr_number}`
 
 ### 3. Read automated review feedback
-Three bots automatically review PRs: **Gemini Code Assist**, **Claude** (via GitHub Actions), and **ChatGPT Codex**. The orchestrator has already waited for them and will tell you their status in the "Automated Review Status" section appended to this prompt. **Do NOT poll or wait for bots yourself** — that is handled before you run.
+Four bots automatically review PRs: **Gemini Code Assist** (free tier), **Claude** (via GitHub Actions), **ChatGPT Codex**, and **Gemini 3.1 Pro** (custom reviewer with full source context, via GitHub Actions). The orchestrator has already waited for them and will tell you their status in the "Automated Review Status" section appended to this prompt. **Do NOT poll or wait for bots yourself** — that is handled before you run.
 
 For each bot marked as "HAS posted its review":
 - `gh api repos/bedwards/copper-hollow/pulls/{pr_number}/reviews --jq '.[] | select(.user.login == "gemini-code-assist[bot]" or .user.login == "chatgpt-codex-connector[bot]") | .body'` — read Gemini/ChatGPT summary reviews

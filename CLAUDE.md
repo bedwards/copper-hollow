@@ -125,6 +125,36 @@ python3 ralph.py --status           # Print current state
 python3 ralph.py --reset            # Reset counters before starting
 ```
 
+### Image Generation & Analysis
+
+When you need to generate or analyze images, use the Gemini Nano Banana Pro tool:
+
+```bash
+# Generate an image
+python3 tools/gemini-image/gemini_image.py generate \
+  --prompt "your prompt here" \
+  --output path/to/output.png \
+  --bg-color "#1a1a2e"
+
+# Analyze an image
+python3 tools/gemini-image/gemini_image.py analyze \
+  --input path/to/image.png \
+  --prompt "describe what you see"
+
+# Edit an image
+python3 tools/gemini-image/gemini_image.py edit \
+  --input source.png \
+  --prompt "make it more rustic" \
+  --output edited.png \
+  --bg-color "#1a1a2e"
+```
+
+- Always use `--bg-color` matching the target web page background so vignette edges blend
+- Generated images are automatically post-processed with ImageMagick vignette
+- Uses Nano Banana Pro (Gemini 3 Pro Image) — highest quality model available
+- Analysis uses Gemini 3.1 Pro — the most powerful model available (March 2026)
+- Requires `GEMINI_API_KEY` env var or `~/.config/gemini/api_key` file
+
 ### Tagging
 - v0.0.1 — First PR merged (scaffolding)
 - v0.1.0 — Core types complete

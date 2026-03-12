@@ -17,6 +17,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -83,6 +84,14 @@ BOT_REVIEWERS = [
             "reached your Codex usage limits",
             "usage dashboard",
         ],
+    },
+    {
+        "name": "Gemini 3.1 Pro (custom)",
+        "login": "github-actions[bot]",
+        "type": "action",
+        "check_name": "gemini-review",
+        "workflow_name": "Gemini 3.1 Pro Review",
+        "quota_phrases": [],
     },
 ]
 
@@ -668,6 +677,14 @@ def phase_work(dry_run=False):
 
     issue_number = issue["number"]
     issue_title = issue["title"]
+
+    # Generate branch name if not set (orchestrator may have timed out)
+    if not branch:
+        # Build branch name from issue title
+        slug = re.sub(r'[^a-z0-9]+', '-', issue_title.lower())[:50].strip('-')
+        branch = f"issue-{issue_number}-{slug}"
+        update_status(current_branch=branch)
+        log_phase("work", f"Generated branch name: {branch}")
 
     log_phase("work", f"Working on issue #{issue_number}: {issue_title}")
     log_phase("work", f"Branch: {branch}")
