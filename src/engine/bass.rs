@@ -97,15 +97,42 @@ impl BassEngine {
     }
 
     /// Find MIDI note for a pitch class closest to a reference note, within range.
-    fn closest_note_for_pc(pc: PitchClass, reference: u8, range: (u8, u8)) -> u8 {
+    /// Returns `None` if no note with the target pitch class exists in the range.
+    fn closest_note_for_pc(pc: PitchClass, reference: u8, range: (u8, u8)) -> Option<u8> {
         let semitone = pc.to_semitone();
-        let mut best = range.0;
+        let mut best: Option<u8> = None;
         let mut best_dist = u8::MAX;
         // Check all octaves within range
         for octave in 0..=10u8 {
             let note = octave * 12 + semitone;
             if note < range.0 || note > range.1 {
                 continue;
+            }
+            let dist = note.abs_diff(reference);
+            if dist < best_dist {
+                best_dist = dist;
+                best = Some(note);
+            }
+        }
+        best
+    }
+
+    /// Find the closest note for a pitch class near a reference point.
+    /// First tries within the given range. If no match found in range,
+    /// expands to search all MIDI notes (0–127) and picks the nearest one
+    /// with the correct pitch class, ensuring we never produce a wrong note.
+    fn resolve_note_for_pc(pc: PitchClass, reference: u8, range: (u8, u8)) -> u8 {
+        if let Some(note) = Self::closest_note_for_pc(pc, reference, range) {
+            return note;
+        }
+        // Expand search: find nearest note with correct PC across all MIDI
+        let semitone = pc.to_semitone();
+        let mut best = semitone; // octave 0 fallback
+        let mut best_dist = u8::MAX;
+        for octave in 0..=10u8 {
+            let note = octave * 12 + semitone;
+            if note > 127 {
+                break;
             }
             let dist = note.abs_diff(reference);
             if dist < best_dist {
@@ -148,7 +175,7 @@ impl BassEngine {
         pitch_table: &[u8],
         range: (u8, u8),
     ) -> (u8, bool) {
-        let target = Self::closest_note_for_pc(next_root, current_note, range);
+        let target = Self::resolve_note_for_pc(next_root, current_note, range);
 
         // Determine direction to target
         let diff = target as i16 - current_note as i16;
@@ -212,8 +239,8 @@ impl BassEngine {
         next_root: Option<PitchClass>,
         channel: u8,
     ) -> (Vec<NoteEvent>, u8) {
-        let root = Self::closest_note_for_pc(chord.root, prev_note, range);
-        let fifth = Self::closest_note_for_pc(Self::chord_fifth(chord), root, range);
+        let root = Self::resolve_note_for_pc(chord.root, prev_note, range);
+        let fifth = Self::resolve_note_for_pc(Self::chord_fifth(chord), root, range);
 
         let mut events = Vec::new();
 
@@ -234,7 +261,7 @@ impl BassEngine {
             let third_pc = chord.root.transpose(
                 if chord.quality == super::theory::ChordQuality::Minor { 3 } else { 4 }
             );
-            let pickup_note = Self::closest_note_for_pc(third_pc, root, range);
+            let pickup_note = Self::resolve_note_for_pc(third_pc, root, range);
             events.push(NoteEvent {
                 tick: bar_offset + TICKS_PER_BEAT + TICKS_PER_BEAT / 2,
                 note: pickup_note,
@@ -289,7 +316,7 @@ impl BassEngine {
         next_root: Option<PitchClass>,
         channel: u8,
     ) -> (Vec<NoteEvent>, u8) {
-        let root = Self::closest_note_for_pc(chord.root, prev_note, range);
+        let root = Self::resolve_note_for_pc(chord.root, prev_note, range);
         let mut events = Vec::new();
 
         // Beat 1: chord root (mandatory per spec)
@@ -310,7 +337,7 @@ impl BassEngine {
         } else {
             chord.root
         };
-        let beat3_note = Self::closest_note_for_pc(beat3_pc, root, range);
+        let beat3_note = Self::resolve_note_for_pc(beat3_pc, root, range);
 
         // Beat 2: scale tone moving toward beat 3 target
         let direction = if beat3_note >= root { 1 } else { -1 };
@@ -416,7 +443,7 @@ impl BassEngine {
         range: (u8, u8),
         channel: u8,
     ) -> (Vec<NoteEvent>, u8) {
-        let root_low = Self::closest_note_for_pc(chord.root, prev_note, range);
+        let root_low = Self::resolve_note_for_pc(chord.root, prev_note, range);
         let root_high = if root_low + 12 <= range.1 {
             root_low + 12
         } else {
@@ -517,14 +544,14 @@ impl BassEngine {
 
         // Start near the sweet spot center
         let center = (config.range.0 / 2).saturating_add(config.range.1 / 2);
-        let mut prev_note = Self::closest_note_for_pc(
+        let mut prev_note = Self::resolve_note_for_pc(
             config.chords_per_bar[0].root,
             center,
             config.range,
         );
 
         // Pedal note: tonic in low register
-        let pedal_note = Self::closest_note_for_pc(config.tonic, config.range.0 + 7, config.range);
+        let pedal_note = Self::resolve_note_for_pc(config.tonic, config.range.0 + 7, config.range);
 
         // Ghost notes only in walking and octave styles
         let use_ghosts = matches!(style, BassStyle::Walking | BassStyle::Octave);
@@ -905,11 +932,86 @@ mod tests {
     fn voice_leading_chooses_closest_voicing() {
         // G2 (43) -> next chord root C: should pick C3 (48) over C2 (36)
         let note = BassEngine::closest_note_for_pc(PitchClass::C, 43, (28, 55));
-        assert_eq!(note, 48, "should choose C3 (48) as closest to G2 (43), got {}", note);
+        assert_eq!(note, Some(48), "should choose C3 (48) as closest to G2 (43), got {:?}", note);
 
         // D3 (50) -> next chord root A: should pick A2 (45) over A3 (57)
         let note = BassEngine::closest_note_for_pc(PitchClass::A, 50, (28, 55));
-        assert_eq!(note, 45, "should choose A2 (45) as closest to D3 (50), got {}", note);
+        assert_eq!(note, Some(45), "should choose A2 (45) as closest to D3 (50), got {:?}", note);
+    }
+
+    // -- Option-based fallback (bug #111) ------------------------------------
+
+    #[test]
+    fn closest_note_for_pc_returns_none_when_not_in_range() {
+        // Range 40..=42 contains E2(40), F2(41), F#2(42). No C exists in range.
+        let result = BassEngine::closest_note_for_pc(PitchClass::C, 41, (40, 42));
+        assert_eq!(result, None, "should return None when target PC not in range");
+    }
+
+    #[test]
+    fn resolve_note_for_pc_expands_search_when_not_in_range() {
+        // Range 40..=42 contains no C. Nearest C to reference 41: C2=36 (dist 5) vs C3=48 (dist 7).
+        let note = BassEngine::resolve_note_for_pc(PitchClass::C, 41, (40, 42));
+        assert_eq!(
+            PitchClass::from_midi(note),
+            PitchClass::C,
+            "expanded search must return correct pitch class, got {} ({:?})",
+            note,
+            PitchClass::from_midi(note),
+        );
+        assert_eq!(note, 36, "should pick C2 (36) as nearest C to reference 41");
+    }
+
+    #[test]
+    fn resolve_note_for_pc_prefers_in_range_when_available() {
+        // Range 28..=55 contains C2(36), C3(48). Reference 43 -> should pick C3(48).
+        let note = BassEngine::resolve_note_for_pc(PitchClass::C, 43, (28, 55));
+        assert_eq!(note, 48);
+        // Confirm this matches the in-range result
+        assert_eq!(
+            BassEngine::closest_note_for_pc(PitchClass::C, 43, (28, 55)),
+            Some(48),
+        );
+    }
+
+    #[test]
+    fn bass_narrow_range_produces_correct_pitch_classes() {
+        // Regression test: narrow range where chord root may not exist in range.
+        // Range 40..=46 (E2-Bb2). Chord root = C. Previously would return 40 (E).
+        let scale = Scale::new(PitchClass::C, ScaleType::Major);
+        let chords = vec![c_major_chord(); 2];
+        let config = BassConfig {
+            scale: &scale,
+            chords_per_bar: &chords,
+            part: SongPart::Verse,
+            channel: 6,
+            range: (40, 46),
+            style: Some(BassStyle::RootFifth),
+            tonic: PitchClass::C,
+        };
+
+        let mut engine = BassEngine::new(42);
+        let pattern = engine.generate_bass(&config);
+
+        // Beat 1 of each bar should target chord root C, not default to E (range.0=40)
+        for bar in 0..2u32 {
+            let bar_start = bar * TICKS_PER_BAR;
+            let first_in_bar = pattern
+                .events
+                .iter()
+                .find(|e| e.tick >= bar_start && e.tick < bar_start + TICKS_PER_BEAT);
+            if let Some(event) = first_in_bar {
+                let pc = PitchClass::from_midi(event.note);
+                assert_eq!(
+                    pc,
+                    PitchClass::C,
+                    "bar {} beat 1 should be root C, got {:?} (note {}). Bug #111: was defaulting to range.0",
+                    bar,
+                    pc,
+                    event.note,
+                );
+            }
+        }
     }
 
     // -- Ghost notes --------------------------------------------------------
@@ -1019,7 +1121,7 @@ mod tests {
         // Approach to A from C (36): result should be within 2 semitones of A
         for _ in 0..20 {
             let (note, _) = engine.approach_note(36, PitchClass::A, &pitch_table, range);
-            let target = BassEngine::closest_note_for_pc(PitchClass::A, 36, range);
+            let target = BassEngine::resolve_note_for_pc(PitchClass::A, 36, range);
             let diff = note.abs_diff(target);
             assert!(
                 diff <= 3,
