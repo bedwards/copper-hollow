@@ -10,7 +10,7 @@ Given a 7-note scale, stack every other note to build triads on each degree:
 | II | Minor | Diminished |
 | III | Minor | Major |
 | IV | Major | Minor |
-| V | Major | Major |
+| V | Major | Minor |
 | VI | Minor | Major |
 | VII | Diminished | Major |
 
