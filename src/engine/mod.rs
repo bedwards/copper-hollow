@@ -3,6 +3,7 @@ pub mod bass;
 pub mod composer;
 pub mod drums;
 pub mod melody;
+pub mod pads;
 pub mod rhythm;
 pub mod song;
 pub mod theory;
