@@ -55,6 +55,13 @@ Implement a single GitHub issue on a feature branch and create a pull request.
 ## Context Loss
 Your context window is destroyed when this phase ends. The next worker (reviewer) starts from zero. Your durable artifacts are **committed and pushed code** and the **pull request**. The reviewer will only see the PR diff, PR body, and the GitHub issue — they have no access to your reasoning or decisions. Write a descriptive PR body explaining what you implemented and why you made the choices you did. Use clear commit messages. If you hit edge cases or made tradeoffs, document them in the PR body so the reviewer can evaluate them.
 
+## Production Quality Standards
+This is a production system sold to demanding customers. Your code must meet these standards:
+- **No stubs returning fake success** — If a CLI command can't be fully implemented yet, it must return `ok: false` with a clear error message and non-zero exit code. Never return `ok: true` for something that didn't actually work.
+- **No mocks in production paths** — Use real engine calls, real file I/O, real state. Mocks are only for unit tests replacing external dependencies.
+- **No demoware** — Every feature must be full-stack and verified. If implementing a CLI command, it must call the real engine, produce real output, and be tested end-to-end.
+- **Integration tests required** — For CLI commands: test actual JSON output and exit codes. For engine features: test with real composition pipelines. For file operations: verify files on disk.
+
 ## Constraints
 - ONLY work on the assigned issue — do not scope creep
 - ONLY modify files relevant to the issue

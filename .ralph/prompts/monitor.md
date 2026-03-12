@@ -16,10 +16,15 @@ Check the health of the main branch and project state.
    - `gh pr list --repo bedwards/copper-hollow --state open --json number,title,statusCheckRollup`
    - `gh issue list --repo bedwards/copper-hollow --state open --json number,title,labels`
    - Any stale PRs (open > 1 day)?
-5. Check documentation is up to date:
+5. Check for production quality violations:
+   - Run each CLI command that exists in `--help` and verify it either works or returns `ok: false`
+   - Flag any command returning `ok: true` with `"not yet implemented"` — this is a production quality violation
+   - Check for stub implementations: `grep -r "not yet implemented" src/`
+   - Verify recent PRs received actual review comments (not just auto-merged)
+6. Check documentation is up to date:
    - Does README.md reflect current state?
    - Are there new modules not mentioned in CLAUDE.md?
-6. Output a JSON object to stdout:
+7. Output a JSON object to stdout:
 
 ```json
 {
