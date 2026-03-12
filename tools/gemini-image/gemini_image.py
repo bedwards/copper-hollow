@@ -43,7 +43,7 @@ from google.genai import types
 IMAGE_MODEL = "gemini-3-pro-image-preview"
 
 # Fallback for analysis-only tasks (cheaper, still excellent)
-ANALYSIS_MODEL = "gemini-3.1-pro"
+ANALYSIS_MODEL = "gemini-3.1-pro-preview"
 
 
 def apply_vignette(image_path: str, bg_color: str = "#000000") -> None:

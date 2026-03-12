@@ -25,7 +25,7 @@ from google import genai
 from google.genai import types
 
 
-GEMINI_MODEL = "gemini-3.1-pro"  # Most powerful model, March 2026
+GEMINI_MODEL = "gemini-3.1-pro-preview"  # Most powerful model, March 2026
 GITHUB_REPO = os.environ.get("GITHUB_REPOSITORY", "bedwards/copper-hollow")
 
 
