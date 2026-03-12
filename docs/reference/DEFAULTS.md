@@ -15,7 +15,7 @@
 
 Intro → Verse → PreChorus → Chorus → Verse → PreChorus → Chorus → Bridge → Chorus → Outro
 
-Total: 60 bars (4+8+4+8+8+4+8+8+8+4, second verse/prechorus/chorus same bar counts)
+Total: 64 bars (4+8+4+8+8+4+8+8+8+4, second verse/prechorus/chorus same bar counts)
 
 ## Default Chord Progressions
 
