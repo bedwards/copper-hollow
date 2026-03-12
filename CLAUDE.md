@@ -1,5 +1,7 @@
 # CLAUDE.md — Instructions for Claude Code
 
+Read the gemini-code-assist comment on the GitHub pull request and act on it.
+
 ## Project: Copper Hollow
 
 You are building a Rust application that composes MIDI music in folk/indie/alt-country styles. Read the docs/ folder specs before writing code.
