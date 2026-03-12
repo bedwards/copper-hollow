@@ -3,6 +3,8 @@
 // Converts a `Song` into a Standard MIDI File (Type 1, multi-track)
 // with 480 ticks per beat, tempo meta events, track names, and
 // note/CC/pitch-bend events.
+// Fully implemented — awaiting GUI integration (v0.4.0).
+#![allow(dead_code)]
 
 use anyhow::Result;
 use midly::num::{u14, u15, u24, u28, u4, u7};

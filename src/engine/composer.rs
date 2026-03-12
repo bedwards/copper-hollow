@@ -3,6 +3,8 @@
 // Ties all engine modules together: arrangement, drums, bass, melody, pads,
 // and rhythm. Produces a complete Song with patterns for every active track
 // in every section. Fully deterministic given the same seed + settings.
+// Fully implemented — awaiting GUI integration (v0.4.0).
+#![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
 

@@ -1,4 +1,6 @@
 // Groove patterns, strum generation, humanization, and swing.
+// Fully implemented — awaiting GUI integration (v0.4.0).
+#![allow(dead_code)]
 
 use rand::RngExt;
 use rand::SeedableRng;

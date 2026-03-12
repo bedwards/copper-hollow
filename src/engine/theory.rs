@@ -26,6 +26,7 @@ pub enum PitchClass {
 
 impl PitchClass {
     /// All 12 pitch classes in chromatic order.
+    #[allow(dead_code)]
     pub const ALL: [PitchClass; 12] = [
         PitchClass::C,
         PitchClass::Cs,
@@ -42,16 +43,19 @@ impl PitchClass {
     ];
 
     /// Convert a MIDI note number to its pitch class.
+    #[allow(dead_code)]
     pub fn from_midi(note: u8) -> Self {
         PitchClass::ALL[(note % 12) as usize]
     }
 
     /// Semitone offset from C (0–11).
+    #[allow(dead_code)]
     pub fn to_semitone(self) -> u8 {
         self as u8
     }
 
     /// Transpose by a signed number of semitones.
+    #[allow(dead_code)]
     pub fn transpose(self, semitones: i8) -> Self {
         let val = (self.to_semitone() as i16 + semitones as i16).rem_euclid(12) as u8;
         PitchClass::ALL[val as usize]
@@ -146,6 +150,7 @@ impl ScaleType {
 
     /// For scales with fewer than 7 notes, return the parent diatonic intervals
     /// used for chord derivation.
+    #[allow(dead_code)]
     pub fn parent_diatonic_intervals(self) -> &'static [u8] {
         match self {
             ScaleType::MinorPentatonic | ScaleType::Blues => ScaleType::NaturalMinor.intervals(),
@@ -197,6 +202,7 @@ impl Scale {
     }
 
     /// Concrete pitch classes for the enabled degrees.
+    #[allow(dead_code)]
     pub fn pitch_classes(&self) -> Vec<PitchClass> {
         self.scale_type
             .intervals()
@@ -208,12 +214,14 @@ impl Scale {
     }
 
     /// Test whether a pitch class belongs to this scale (considering enabled degrees).
+    #[allow(dead_code)]
     pub fn contains(&self, pitch: PitchClass) -> bool {
         self.pitch_classes().contains(&pitch)
     }
 
     /// Return the nth scale degree (0-based) as a pitch class.
     /// Returns `None` if `n` is out of range or the degree is disabled.
+    #[allow(dead_code)]
     pub fn degree(&self, n: usize) -> Option<PitchClass> {
         let intervals = self.scale_type.intervals();
         if n >= intervals.len() {
@@ -227,6 +235,7 @@ impl Scale {
 
     /// Derive diatonic triads for each of the 7 scale degrees.
     /// For pentatonic/blues, uses the parent diatonic scale.
+    #[allow(dead_code)]
     pub fn diatonic_chords(&self) -> Vec<(ChordDegree, ChordQuality)> {
         let intervals = self.scale_type.parent_diatonic_intervals();
         if intervals.len() < 7 {
@@ -272,6 +281,7 @@ impl Scale {
 // ChordQuality
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ChordQuality {
@@ -289,6 +299,7 @@ pub enum ChordQuality {
 
 impl ChordQuality {
     /// Semitone offsets from root for this chord quality.
+    #[allow(dead_code)]
     pub fn intervals(self) -> &'static [u8] {
         match self {
             ChordQuality::Major => &[0, 4, 7],
@@ -322,6 +333,7 @@ pub enum ChordDegree {
 }
 
 impl ChordDegree {
+    #[allow(dead_code)]
     pub const ALL: [ChordDegree; 7] = [
         ChordDegree::I,
         ChordDegree::II,
@@ -333,6 +345,7 @@ impl ChordDegree {
     ];
 
     /// Zero-based index (I=0, VII=6).
+    #[allow(dead_code)]
     pub fn to_index(self) -> usize {
         self as usize
     }
@@ -387,6 +400,7 @@ impl<'de> Deserialize<'de> for ChordDegree {
 // Chord
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Chord {
     pub root: PitchClass,
@@ -398,6 +412,7 @@ pub struct Chord {
 
 impl Chord {
     /// Return the pitch classes in this chord based on root and quality.
+    #[allow(dead_code)]
     pub fn notes(&self) -> Vec<PitchClass> {
         self.quality
             .intervals()
@@ -412,6 +427,7 @@ impl Chord {
 // ---------------------------------------------------------------------------
 
 /// Named intervals with their semitone distances.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Interval {
@@ -432,6 +448,7 @@ pub enum Interval {
 
 impl Interval {
     /// Semitone distance for this interval.
+    #[allow(dead_code)]
     pub fn semitones(self) -> u8 {
         match self {
             Interval::Unison => 0,
@@ -452,6 +469,7 @@ impl Interval {
 
     /// Create an interval from a semitone count (0-12).
     /// Returns `None` for values outside this range.
+    #[allow(dead_code)]
     pub fn from_semitones(semitones: u8) -> Option<Self> {
         match semitones {
             0 => Some(Interval::Unison),
@@ -472,6 +490,7 @@ impl Interval {
     }
 
     /// Compute the interval between two pitch classes (ascending, 0-11 semitones).
+    #[allow(dead_code)]
     pub fn between(from: PitchClass, to: PitchClass) -> Option<Self> {
         let diff = (to.to_semitone() as i16 - from.to_semitone() as i16).rem_euclid(12) as u8;
         Self::from_semitones(diff)

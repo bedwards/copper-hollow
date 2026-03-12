@@ -22,6 +22,7 @@ pub enum SongPart {
 
 impl SongPart {
     /// Default bar count for this part.
+    #[allow(dead_code)]
     pub fn typical_bars(self) -> u32 {
         match self {
             SongPart::Intro => 4,
@@ -85,6 +86,7 @@ pub enum InstrumentType {
 
 impl InstrumentType {
     /// Whether this is a percussion instrument.
+    #[allow(dead_code)]
     pub fn is_percussion(self) -> bool {
         matches!(
             self,
@@ -105,6 +107,7 @@ impl InstrumentType {
 
     /// General MIDI drum note for percussion instruments.
     /// Returns `None` for melodic instruments.
+    #[allow(dead_code)]
     pub fn gm_drum_note(self) -> Option<u8> {
         match self {
             InstrumentType::Kick => Some(36),        // Acoustic Bass Drum
@@ -125,6 +128,7 @@ impl InstrumentType {
 
     /// Comfortable MIDI note range (low, high) for melodic instruments.
     /// For percussion, returns `(note, note)` with the GM drum note.
+    #[allow(dead_code)]
     pub fn midi_range(self) -> (u8, u8) {
         if let Some(note) = self.gm_drum_note() {
             return (note, note);
@@ -269,6 +273,7 @@ pub struct Pattern {
 }
 
 impl Pattern {
+    #[allow(dead_code)]
     pub fn empty(bars: u32) -> Self {
         Self {
             events: Vec::new(),
@@ -431,11 +436,13 @@ impl Song {
     }
 
     /// Total bar count from the song structure.
+    #[allow(dead_code)]
     pub fn total_bars(&self) -> u32 {
         self.structure.iter().map(|p| p.typical_bars()).sum()
     }
 
     /// Total length in ticks.
+    #[allow(dead_code)]
     pub fn total_ticks(&self) -> u32 {
         self.total_bars() * super::TICKS_PER_BAR
     }

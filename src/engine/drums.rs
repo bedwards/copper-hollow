@@ -1,6 +1,8 @@
 // Per-instrument drum pattern generation by song part.
 // Generates kick, snare, hi-hat, tambourine, shaker, cowbell, ride, and crash
 // patterns following genre-appropriate folk/indie grooves per docs/engine/DRUMS.md.
+// Fully implemented — awaiting GUI integration (v0.4.0).
+#![allow(dead_code)]
 
 use rand::RngExt;
 use rand::SeedableRng;

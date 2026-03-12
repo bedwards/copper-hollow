@@ -1,4 +1,6 @@
 // Melodic contour generation, chord tone targeting, voice leading.
+// Fully implemented — awaiting GUI integration (v0.4.0).
+#![allow(dead_code)]
 
 use rand::RngExt;
 use rand::SeedableRng;
