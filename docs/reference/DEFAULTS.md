@@ -32,22 +32,22 @@ Total: 60 bars (4+8+4+8+8+4+8+8+8+4, second verse/prechorus/chorus same bar coun
 
 | Ch | Name | Role | Instrument | Voicing | Active: I V P C B O |
 |----|------|------|------------|---------|---------------------|
-| 1 | Kick | Drum | Kick | - | ○●●●●○ |
-| 2 | Snare | Drum | Snare | - | ○●●●●○ |
-| 3 | Hi-Hat | Drum | HiHat | - | ○●●●●○ |
-| 4 | Tambourine | Drum | Tambourine | - | ○○○●○○ |
-| 5 | Acoustic Guitar | Rhythm | AcousticGuitar | Poly | ●●●●●● |
-| 6 | Electric Guitar | Rhythm | ElectricGuitar | Poly | ○○●●○○ |
-| 7 | Electric Bass | Bass | ElectricBass | Mono | ○●●●●○ |
-| 8 | Piano | Rhythm | Piano | Poly | ●●●●●● |
-| 9 | Pedal Steel | Lead | PedalSteel | Mono | ○○○●●○ |
-| 10 | Mandolin | Counter | Mandolin | Mono | ○●●●○○ |
-| 11 | Banjo | Rhythm | Banjo | Poly | ○○○●○○ |
-| 12 | Hammond Organ | Pad | HammondOrgan | Poly | ○○●●●○ |
-| 13 | Pad | Pad | Pad | Poly | ●○●○●● |
-| 14 | Lead Melody | Lead | AcousticGuitar | Mono | ○●●●●○ |
-| 15 | Counter Melody | Counter | Mandolin | Mono | ○○○●○○ |
-| 16 | Shaker | Drum | Shaker | - | ○○○●○○ |
+| 0 | Kick | Drum | Kick | - | ○●●●●○ |
+| 1 | Snare | Drum | Snare | - | ○●●●●○ |
+| 2 | Hi-Hat | Drum | HiHat | - | ○●●●●○ |
+| 3 | Tambourine | Drum | Tambourine | - | ○○○●○○ |
+| 4 | Acoustic Guitar | Rhythm | AcousticGuitar | Poly | ●●●●●● |
+| 5 | Electric Guitar | Rhythm | ElectricGuitar | Poly | ○○●●○○ |
+| 6 | Electric Bass | Bass | ElectricBass | Mono | ○●●●●○ |
+| 7 | Piano | Rhythm | Piano | Poly | ●●●●●● |
+| 8 | Pedal Steel | Lead | PedalSteel | Mono | ○○○●●○ |
+| 9 | Mandolin | Counter | Mandolin | Mono | ○●●●○○ |
+| 10 | Banjo | Rhythm | Banjo | Poly | ○○○●○○ |
+| 11 | Hammond Organ | Pad | HammondOrgan | Poly | ○○●●●○ |
+| 12 | Pad | Pad | Pad | Poly | ●○●○●● |
+| 13 | Lead Melody | Lead | AcousticGuitar | Mono | ○●●●●○ |
+| 14 | Counter Melody | Counter | Mandolin | Mono | ○○○●○○ |
+| 15 | Shaker | Drum | Shaker | - | ○○○●○○ |
 
 I=Intro, V=Verse, P=PreChorus, C=Chorus, B=Bridge, O=Outro. ●=active, ○=silent.
 
