@@ -1,3 +1,6 @@
+// State management, IPC protocol — awaiting GUI integration (v0.4.0).
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};

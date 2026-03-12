@@ -4,6 +4,8 @@
 // to concrete Chord structs per bar, computes section tick ranges with occurrence-
 // based seed offsets, generates transition events (crash cymbals, open hi-hat,
 // velocity boosts) at section boundaries.
+// Fully implemented — awaiting GUI integration (v0.4.0).
+#![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
 

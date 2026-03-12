@@ -1,5 +1,7 @@
 // Pad/sustain chord generation: voice-led sustained chords with open, close,
 // and drop-2 voicings per docs/engine/THEORY.md.
+// Fully implemented — awaiting GUI integration (v0.4.0).
+#![allow(dead_code)]
 
 use rand::RngExt;
 use rand::SeedableRng;

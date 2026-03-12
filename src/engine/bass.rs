@@ -1,5 +1,7 @@
 // Bass line generation: walking, root-fifth, pedal, octave patterns with
 // approach notes, voice leading, and register management per docs/engine/BASS.md.
+// Fully implemented — awaiting GUI integration (v0.4.0).
+#![allow(dead_code)]
 
 use rand::RngExt;
 use rand::SeedableRng;
