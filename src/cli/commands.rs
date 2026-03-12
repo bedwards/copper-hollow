@@ -116,11 +116,12 @@ fn build_response(command: &Commands, args: &Cli) -> serde_json::Value {
                 }
             }
         }
-        _ => serde_json::json!({"ok": true, "data": "not yet implemented"}),
+        _ => serde_json::json!({"ok": false, "error": "command not yet implemented"}),
     }
 }
 
 /// Execute a CLI command and print JSON to stdout.
+/// Returns an error (non-zero exit code) when the response has `ok: false`.
 pub fn execute(command: &Commands, args: &Cli) -> Result<()> {
     let response = build_response(command, args);
 
@@ -129,6 +130,14 @@ pub fn execute(command: &Commands, args: &Cli) -> Result<()> {
     } else {
         println!("{}", serde_json::to_string(&response)?);
     }
+
+    if response.get("ok") == Some(&serde_json::Value::Bool(false)) {
+        let msg = response["error"]
+            .as_str()
+            .unwrap_or("unknown error");
+        anyhow::bail!("{}", msg);
+    }
+
     Ok(())
 }
 
@@ -370,9 +379,10 @@ mod tests {
     }
 
     #[test]
-    fn unimplemented_command_returns_stub() {
+    fn unimplemented_command_returns_error() {
         let resp = exec_json(&Commands::Compose, &default_args());
-        assert_eq!(resp["ok"], true);
-        assert_eq!(resp["data"], "not yet implemented");
+        assert_eq!(resp["ok"], false);
+        let err = resp["error"].as_str().expect("error should be string");
+        assert!(err.contains("not yet implemented"));
     }
 }
