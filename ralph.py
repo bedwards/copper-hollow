@@ -944,6 +944,12 @@ def check_should_halt():
 
 def run_phase(phase_name, dry_run=False):
     """Run a single phase with error handling."""
+    # Check halt flag before every phase (not just at loop boundary)
+    status = read_json(STATUS_FILE)
+    if status.get("halted"):
+        log(f"Halted before {phase_name}: {status.get('halt_reason', 'unknown')}", "WARN")
+        return None  # Signal halt, distinct from True (success) / False (failure)
+
     phase_fn = PHASE_FUNCTIONS.get(phase_name)
     if not phase_fn:
         log(f"Unknown phase: {phase_name}", "ERROR")
@@ -1021,9 +1027,14 @@ def main_loop(max_loops=None, start_phase=None, dry_run=False):
             if check_should_halt():
                 break
 
-            success = run_phase(phase_name, dry_run=dry_run)
+            result = run_phase(phase_name, dry_run=dry_run)
 
-            if not success:
+            if result is None:
+                # Halt signal — stop immediately
+                log("Halt detected, stopping loop")
+                return
+
+            if not result:
                 # Check if it's a rate limit
                 metrics = read_json(METRICS_FILE)
                 if metrics.get("last_rate_limit_at"):
