@@ -30,7 +30,7 @@ The user never inputs individual notes through the GUI. They press "next suggest
 | Async runtime | tokio | 1.50.0 | MIT |
 | MIDI files | midly | 0.5.3 | MIT |
 | Serialization | serde + serde_json | 1.x | MIT/Apache |
-| RNG | rand + rand_chacha | 0.8 / 0.3 | MIT/Apache |
+| RNG | rand + rand_chacha | 0.10 / 0.10 | MIT/Apache |
 | Logging | tracing + tracing-subscriber | 0.1 / 0.3 | MIT |
 | Bitwig ext | Java 12+ | API 18 | — |
 | Bitwig build | Maven | 3.x | — |
