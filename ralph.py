@@ -48,6 +48,12 @@ MAX_CONSECUTIVE_ERRORS = 5
 RATE_LIMIT_BACKOFF_SECONDS = 300  # 5 minutes
 ERROR_BACKOFF_SECONDS = 30
 
+# Gemini Code Assist review settings
+GEMINI_WAIT_SECONDS = 180  # Wait 3 min (average is 1-4 min) before review phase
+GEMINI_POLL_INTERVAL = 30  # Poll every 30s after initial wait
+GEMINI_POLL_MAX_ATTEMPTS = 6  # Up to 3 more minutes of polling
+GITHUB_REPO = "bedwards/copper-hollow"
+
 # Tagging milestones (PR merge count -> tag)
 MILESTONE_TAGS = {
     1: "v0.0.1",   # first PR merged (scaffolding)
@@ -301,6 +307,48 @@ def git_run(*args, check=True):
     return result.stdout.strip(), result.returncode
 
 
+def wait_for_gemini_review(pr_number):
+    """Wait for Gemini Code Assist to post its review on a PR.
+    Returns True if Gemini review found, False if timed out."""
+    log_phase("review", f"Waiting {GEMINI_WAIT_SECONDS}s for Gemini Code Assist to review PR #{pr_number}...")
+    time.sleep(GEMINI_WAIT_SECONDS)
+
+    for attempt in range(1, GEMINI_POLL_MAX_ATTEMPTS + 1):
+        try:
+            result = subprocess.run(
+                ["gh", "api", f"repos/{GITHUB_REPO}/pulls/{pr_number}/reviews",
+                 "--jq", '[.[] | select(.user.login == "gemini-code-assist[bot]")] | length'],
+                cwd=PROJECT_DIR, capture_output=True, text=True, timeout=30,
+            )
+            count = int(result.stdout.strip() or "0")
+            if count > 0:
+                log_phase("review", f"Gemini review found after {GEMINI_WAIT_SECONDS + attempt * GEMINI_POLL_INTERVAL}s")
+                return True
+        except (subprocess.TimeoutExpired, ValueError):
+            pass
+
+        log_phase("review", f"No Gemini review yet, polling... ({attempt}/{GEMINI_POLL_MAX_ATTEMPTS})")
+        time.sleep(GEMINI_POLL_INTERVAL)
+
+    log_phase("review", "Gemini review not found within timeout — proceeding without it")
+    return False
+
+
+def verify_review_posted(pr_number):
+    """Verify that a non-bot review was actually posted on the PR.
+    Returns True if a human/RALPH review exists, False otherwise."""
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{GITHUB_REPO}/pulls/{pr_number}/reviews",
+             "--jq", '[.[] | select(.user.login != "gemini-code-assist[bot]" and .user.login != "chatgpt-codex-connector[bot]")] | length'],
+            cwd=PROJECT_DIR, capture_output=True, text=True, timeout=30,
+        )
+        count = int(result.stdout.strip() or "0")
+        return count > 0
+    except (subprocess.TimeoutExpired, ValueError):
+        return False
+
+
 def ensure_main():
     """Switch to main branch and pull latest."""
     git_run("checkout", "main")
@@ -524,7 +572,7 @@ def phase_work(dry_run=False):
 
 
 def phase_review(dry_run=False):
-    """Phase 5: Review the PR, merge or leave instructions."""
+    """Phase 5: Wait for Gemini, review the PR, enforce review was posted."""
     log_phase("review", "Starting review phase")
     update_status(phase="review")
 
@@ -538,17 +586,27 @@ def phase_review(dry_run=False):
 
     log_phase("review", f"Reviewing PR #{pr_number}")
 
-    prompt = build_review_prompt(str(pr_number), branch or "unknown")
-
     if dry_run:
         log_phase("review", f"[DRY RUN] Would review PR #{pr_number}")
         return True
 
+    # Step 1: Wait for Gemini Code Assist to post its review
+    gemini_found = wait_for_gemini_review(pr_number)
+
+    # Step 2: Run the reviewer worker with enough turns and time
+    prompt = build_review_prompt(str(pr_number), branch or "unknown")
+
+    # Tell the reviewer whether Gemini posted
+    if gemini_found:
+        prompt += "\n\n## Gemini Status\nGemini Code Assist HAS posted its review. Read it before proceeding.\n"
+    else:
+        prompt += "\n\n## Gemini Status\nGemini Code Assist did NOT post a review within the timeout. Proceed with your own review but note this in the output.\n"
+
     success, output, parsed = run_claude(
         prompt,
         model="opus",
-        max_turns=15,
-        timeout=300,
+        max_turns=25,
+        timeout=600,
     )
 
     if success and parsed:
@@ -556,6 +614,17 @@ def phase_review(dry_run=False):
         log_phase("review", f"Review action: {action}")
 
         if action == "merged":
+            # ENFORCEMENT: Verify a review was actually posted before accepting
+            if not verify_review_posted(pr_number):
+                log_phase("review",
+                    "ENFORCEMENT FAILURE: Reviewer claims merged but no review "
+                    "was posted on the PR. Rejecting result — will retry next loop.")
+                increment_metric("total_errors")
+                # Don't clear state — retry next loop
+                increment_phase_metric("review")
+                update_status(last_phase_completed="review")
+                return True  # Don't fail the loop, just retry
+
             increment_metric("total_prs_merged")
             tag = parsed.get("tag_created")
             if tag:
@@ -565,6 +634,15 @@ def phase_review(dry_run=False):
             update_status(current_issue=None, current_branch=None, current_pr=None)
 
         elif action == "changes_requested":
+            # Verify change request was actually posted
+            if not verify_review_posted(pr_number):
+                log_phase("review",
+                    "ENFORCEMENT FAILURE: Reviewer claims changes requested but "
+                    "no review was posted. Will retry next loop.")
+                increment_phase_metric("review")
+                update_status(last_phase_completed="review")
+                return True
+
             notes = parsed.get("review_notes", "see PR comments")
             log_phase("review", f"Changes requested: {notes}")
             # Leave PR open for next work phase to address
