@@ -12,19 +12,23 @@ Check the health of the main branch and project state.
    - `cargo build --release 2>&1` — does it compile?
    - `cargo test 2>&1` — do tests pass?
    - `cargo clippy -- -D warnings 2>&1` — is it clippy-clean?
-4. Check GitHub state:
+4. Check GitHub Actions CI on main:
+   - `gh run list --repo bedwards/copper-hollow --branch main --workflow ci.yml --limit 3 --json status,conclusion,headSha,createdAt`
+   - If the latest CI run failed, include the failure details: `gh run view <run-id> --repo bedwards/copper-hollow --log-failed`
+   - Compare the CI result with your local build — if they disagree, flag it as a warning
+5. Check GitHub state:
    - `gh pr list --repo bedwards/copper-hollow --state open --json number,title,statusCheckRollup`
    - `gh issue list --repo bedwards/copper-hollow --state open --json number,title,labels`
    - Any stale PRs (open > 1 day)?
-5. Check for production quality violations:
+6. Check for production quality violations:
    - Run each CLI command that exists in `--help` and verify it either works or returns `ok: false`
    - Flag any command returning `ok: true` with `"not yet implemented"` — this is a production quality violation
    - Check for stub implementations: `grep -r "not yet implemented" src/`
    - Verify recent PRs received actual review comments (not just auto-merged)
-6. Check documentation is up to date:
+7. Check documentation is up to date:
    - Does README.md reflect current state?
    - Are there new modules not mentioned in CLAUDE.md?
-7. Output a JSON object to stdout:
+8. Output a JSON object to stdout:
 
 ```json
 {
@@ -34,6 +38,12 @@ Check the health of the main branch and project state.
     "test_count": 15,
     "clippy_clean": true,
     "main_sha": "abc1234"
+  },
+  "ci": {
+    "latest_status": "completed",
+    "latest_conclusion": "success",
+    "latest_sha": "abc1234",
+    "agrees_with_local": true
   },
   "github": {
     "open_prs": 0,
