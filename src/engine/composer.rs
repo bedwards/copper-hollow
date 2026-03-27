@@ -109,7 +109,7 @@ impl Composer {
             // Derive a per-track, per-section seed for variation.
             let track_seed = self.track_section_seed(track.id, section);
 
-            let pattern = match track.role {
+            let mut pattern = match track.role {
                 TrackRole::Drum => {
                     self.generate_drum_pattern(track, section, track_seed)
                 }
@@ -129,6 +129,9 @@ impl Composer {
                     self.generate_rhythm_pattern(track, section, ctx, track_seed)
                 }
             };
+
+            // Apply section dynamics scaling to note velocities per ARRANGEMENT.md.
+            Self::apply_dynamics_scaling(&mut pattern, section.dynamics);
 
             // Offset pattern events by section start tick.
             let offset_pattern = Self::offset_pattern(pattern, section.start_tick);
@@ -387,6 +390,15 @@ impl Composer {
         }
 
         notes
+    }
+
+    /// Apply section dynamics scaling to all note velocities in a pattern.
+    /// Multiplied with existing velocity and clamped to valid MIDI range (1–127).
+    fn apply_dynamics_scaling(pattern: &mut Pattern, dynamics: f64) {
+        for event in &mut pattern.events {
+            let scaled = (event.velocity as f64 * dynamics).round() as u8;
+            event.velocity = scaled.clamp(1, 127);
+        }
     }
 
     /// Offset all events in a pattern by `offset_ticks`.
@@ -988,6 +1000,101 @@ mod tests {
         let verse_expected = composer.track_section_seed(13, &verse_section);
         assert_eq!(chorus_seed, chorus_expected);
         assert_eq!(verse_seed, verse_expected);
+    }
+
+    // -- Dynamics scaling ---------------------------------------------------
+
+    #[test]
+    fn dynamics_scaling_reduces_intro_velocity() {
+        let mut pattern = Pattern::empty(1);
+        pattern.events.push(NoteEvent {
+            tick: 0,
+            note: 60,
+            velocity: 100,
+            duration: 480,
+            channel: 0,
+        });
+
+        // Intro dynamics = 0.55
+        Composer::apply_dynamics_scaling(&mut pattern, 0.55);
+        assert_eq!(pattern.events[0].velocity, 55);
+    }
+
+    #[test]
+    fn dynamics_scaling_chorus_preserves_velocity() {
+        let mut pattern = Pattern::empty(1);
+        pattern.events.push(NoteEvent {
+            tick: 0,
+            note: 60,
+            velocity: 100,
+            duration: 480,
+            channel: 0,
+        });
+
+        // Chorus dynamics = 1.0
+        Composer::apply_dynamics_scaling(&mut pattern, 1.0);
+        assert_eq!(pattern.events[0].velocity, 100);
+    }
+
+    #[test]
+    fn dynamics_scaling_clamps_to_min_1() {
+        let mut pattern = Pattern::empty(1);
+        pattern.events.push(NoteEvent {
+            tick: 0,
+            note: 60,
+            velocity: 1,
+            duration: 480,
+            channel: 0,
+        });
+
+        // Very low dynamics should not produce velocity 0
+        Composer::apply_dynamics_scaling(&mut pattern, 0.01);
+        assert_eq!(pattern.events[0].velocity, 1);
+    }
+
+    #[test]
+    fn dynamics_scaling_clamps_to_max_127() {
+        let mut pattern = Pattern::empty(1);
+        pattern.events.push(NoteEvent {
+            tick: 0,
+            note: 60,
+            velocity: 127,
+            duration: 480,
+            channel: 0,
+        });
+
+        // Even with dynamics > 1.0, velocity should cap at 127
+        Composer::apply_dynamics_scaling(&mut pattern, 1.5);
+        assert_eq!(pattern.events[0].velocity, 127);
+    }
+
+    #[test]
+    fn composed_intro_quieter_than_chorus() {
+        let mut song = default_song();
+        Composer::new(42).compose(&mut song);
+
+        // Acoustic Guitar (ch 4) is active in both Intro and Chorus.
+        let guitar = &song.tracks[4];
+
+        let intro_avg = avg_velocity(guitar.patterns.get(&SongPart::Intro));
+        let chorus_avg = avg_velocity(guitar.patterns.get(&SongPart::Chorus));
+
+        assert!(
+            intro_avg < chorus_avg,
+            "intro avg velocity ({:.1}) should be less than chorus ({:.1})",
+            intro_avg,
+            chorus_avg,
+        );
+    }
+
+    fn avg_velocity(pattern: Option<&Pattern>) -> f64 {
+        match pattern {
+            Some(p) if !p.events.is_empty() => {
+                let sum: u64 = p.events.iter().map(|e| e.velocity as u64).sum();
+                sum as f64 / p.events.len() as f64
+            }
+            _ => 0.0,
+        }
     }
 
     // -- Full composition serde roundtrip -----------------------------------
